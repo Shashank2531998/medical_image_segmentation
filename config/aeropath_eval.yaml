@@ -1,0 +1,15 @@
+dataset:
+  name: aeropath
+  root: ./dataset/AeroPath/
+  max_cases: 2
+
+model:
+  dir: ./models/voxtell_v1.1
+
+evaluation:
+  prompts:
+    - "lung"
+    - "trachea"
+
+output:
+  json_path: ./outputs/aeropath_eval.json

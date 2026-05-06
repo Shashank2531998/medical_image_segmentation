@@ -1,0 +1,5 @@
+Label mapping for combined segmentation:
+==================================================
+0 = Background
+1 = Liver
+2 = Liver Tumor

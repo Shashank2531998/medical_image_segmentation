@@ -1,1 +1,9 @@
 pyyaml
+torch
+transformers
+nnunetv2
+nibabel
+numpy
+tqdm
+einops
+positional-encodings

@@ -9,6 +9,7 @@ from src.model.builder import load_voxtell_model
 from src.training.optimizer import build_optimizer_and_scheduler
 from src.training.losses import bce_loss_logits
 from src.utils.checkpoint import save_checkpoint
+from src.utils.logging import get_logger
 
 
 class Trainer:
@@ -57,24 +58,26 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            # simple checkpoint per epoch
-            out_dir = Path(self.train_cfg.get("output_dir", "experiments/exp_debug"))
-            out_dir.mkdir(parents=True, exist_ok=True)
-            ckpt_path = out_dir / f"checkpoint_epoch_{epoch}.pt"
-            save_checkpoint(self.model, self.optimizer, ckpt_path)
+                # simple checkpoint per epoch into experiment checkpoints
+                out_root = Path(self.train_cfg.get("output_dir", "experiments/exp_debug"))
+                checkpoints_dir = out_root / "checkpoints"
+                checkpoints_dir.mkdir(parents=True, exist_ok=True)
+                ckpt_path = checkpoints_dir / f"checkpoint_epoch_{epoch}.pt"
+                save_checkpoint(self.model, self.optimizer, ckpt_path)
 
-            print(f"Epoch {epoch+1}/{epochs} - loss: {running_loss:.4f}")
+                logger = get_logger(__name__, log_file=out_root / "logs" / "run.log")
+                logger.info(f"Epoch {epoch+1}/{epochs} - loss: {running_loss:.4f}")
 
-            # run light validation
-            self.model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for imgs, masks in val_loader:
-                    imgs = imgs.to(self.device)
-                    masks = masks.to(self.device)
-                    preds = self.model(imgs)
-                    val_loss += float(bce_loss_logits(preds, masks).item())
-            print(f"Validation loss: {val_loss:.4f}")
+                # run light validation
+                self.model.eval()
+                val_loss = 0.0
+                with torch.no_grad():
+                    for imgs, masks in val_loader:
+                        imgs = imgs.to(self.device)
+                        masks = masks.to(self.device)
+                        preds = self.model(imgs)
+                        val_loss += float(bce_loss_logits(preds, masks).item())
+                logger.info(f"Validation loss: {val_loss:.4f}")
 
 
 

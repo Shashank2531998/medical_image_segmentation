@@ -35,6 +35,9 @@ def main():
     from src.utils.config import save_config_snapshot
     save_config_snapshot(cfg, dirs["root"]) 
 
+    # make trainer write artifacts into this experiment root
+    train_cfg["output_dir"] = str(dirs["root"])
+
     datamodule = VoxTellDataModule(data_cfg)
     trainer = Trainer(train_cfg, model_cfg)
 

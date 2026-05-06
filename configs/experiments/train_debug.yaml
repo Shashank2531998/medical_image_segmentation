@@ -1,0 +1,15 @@
+dataset:
+  train_paths: []
+  val_paths: []
+  batch_size: 1
+  num_workers: 0
+
+model:
+  dir: ./models/voxtell_v1.1
+
+training:
+  epochs: 1
+  device: cpu
+  optimizer:
+    lr: 1e-4
+  output_dir: ./experiments/exp_debug

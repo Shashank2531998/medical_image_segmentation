@@ -5,6 +5,8 @@ import yaml
 
 from src.training.trainer import Trainer
 from src.data.datamodule import VoxTellDataModule
+from src.utils.config import load_config
+from src.utils.io import make_experiment_dir
 
 
 def load_config(path: Path) -> dict:
@@ -25,6 +27,13 @@ def main():
     data_cfg = cfg.get("dataset", {})
     train_cfg = cfg.get("training", {})
     model_cfg = cfg.get("model", {})
+
+    # create experiment folder and snapshot config
+    out_root = train_cfg.get("output_dir", "experiments")
+    dirs = make_experiment_dir(out_root)
+    # save resolved config
+    from src.utils.config import save_config_snapshot
+    save_config_snapshot(cfg, dirs["root"]) 
 
     datamodule = VoxTellDataModule(data_cfg)
     trainer = Trainer(train_cfg, model_cfg)

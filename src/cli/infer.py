@@ -4,6 +4,7 @@ import argparse
 import torch
 
 from src.inference.predict_core import predict_image, get_predictor
+from src.utils.io import make_experiment_dir
 
 
 def parse_args():
@@ -30,6 +31,10 @@ def main():
 
     predictor = get_predictor(args.model, device)
 
+    # create experiment folder and store predictions there
+    dirs = make_experiment_dir("experiments")
+    predictions_out = dirs["predictions"]
+
     segmentations = predict_image(
         predictor,
         input_path,
@@ -39,7 +44,8 @@ def main():
 
     from src.inference.predict_core import save_all_segmentations
 
-    save_all_segmentations(segmentations, output_path, input_path, args.prompts, save_combined=False, verbose=True)
+    save_all_segmentations(segmentations, predictions_out, input_path, args.prompts, save_combined=False, verbose=True)
+    print(f"Saved predictions to {predictions_out}")
 
 
 if __name__ == '__main__':

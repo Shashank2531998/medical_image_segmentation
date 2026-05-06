@@ -5,6 +5,7 @@ import yaml
 import torch
 
 from src.evaluation.eval import evaluate_dataset
+from src.utils.io import make_experiment_dir, write_metrics
 
 
 def load_config(path: Path) -> dict:
@@ -40,15 +41,11 @@ def main():
         max_cases=max_cases,
     )
 
-    import json
-    out = cfg.get("output", {}).get("json_path", None)
-    if out:
-        Path(out).parent.mkdir(parents=True, exist_ok=True)
-        with open(out, "w") as f:
-            json.dump(results, f, indent=2)
-        print(f"Saved results to {out}")
-    else:
-        print(results)
+    # persist results into an experiment folder
+    out_root = cfg.get("output", {}).get("experiment_root", "experiments")
+    dirs = make_experiment_dir(out_root)
+    write_metrics(results, dirs["root"], name="metrics.json")
+    print(f"Saved results to {dirs['root'] / 'metrics.json'}")
 
 
 if __name__ == '__main__':

@@ -6,10 +6,10 @@ import nibabel as nib
 import numpy as np
 import torch
 
-from src.adapters.aeropath import AeroPathAdapter
-from src.adapters.base import DatasetAdapter
+from src.data.adapters.aeropath import AeroPathAdapter
+from src.data.adapters.base import DatasetAdapter
 from src.evaluation.metrics import dice_coefficient
-from src.inference.predict_core import predict_image, get_predictor
+from src.inference.predictor import predict_image, get_predictor
 
 
 # ============================================================================  

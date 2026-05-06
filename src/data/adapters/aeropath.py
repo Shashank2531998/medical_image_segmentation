@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.adapters.base import DatasetAdapter, EvaluationCase
+from src.data.adapters.base import DatasetAdapter, EvaluationCase
 
 
 class AeroPathAdapter(DatasetAdapter):

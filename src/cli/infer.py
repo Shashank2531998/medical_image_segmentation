@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse
 import torch
 
-from src.inference.predict_core import predict_image, get_predictor
+from src.inference.predictor import predict_image, get_predictor, save_all_segmentations
 from src.utils.io import make_experiment_dir
 
 
@@ -41,8 +41,6 @@ def main():
         args.prompts,
         verbose=True,
     )
-
-    from src.inference.predict_core import save_all_segmentations
 
     save_all_segmentations(segmentations, predictions_out, input_path, args.prompts, save_combined=False, verbose=True)
     print(f"Saved predictions to {predictions_out}")

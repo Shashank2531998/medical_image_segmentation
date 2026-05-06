@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 from pathlib import Path
-import yaml
 
 from src.training.trainer import Trainer
 from src.data.datamodule import VoxTellDataModule
 from src.utils.config import load_config
 from src.utils.io import make_experiment_dir
-
-
-def load_config(path: Path) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
 
 
 def parse_args():

@@ -6,14 +6,14 @@ from src.cli.eval_common import run_eval_from_config
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--config", required=True)
+    p.add_argument("--config", required=True, help="Path to YAML config")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
-    out_file = run_eval_from_config(args.config, split_key="evaluation", metrics_name="metrics.json")
-    print(f"Saved results to {out_file}")
+    out_file = run_eval_from_config(args.config, split_key="validation", metrics_name="validation_metrics.json")
+    print(f"Saved validation results to {out_file}")
 
 
 if __name__ == '__main__':

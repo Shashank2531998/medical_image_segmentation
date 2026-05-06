@@ -1,17 +1,20 @@
+from pathlib import Path
 from typing import List, Tuple, Union
 
+import nibabel
 import numpy as np
 import torch
 
 from acvl_utils.cropping_and_padding.padding import pad_nd_image
-from nnunetv2.preprocessing.cropping.cropping import crop_to_nonzero
-from nnunetv2.preprocessing.normalization.default_normalization_schemes import ZScoreNormalization
+from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
 from nnunetv2.utilities.helpers import dummy_context
 
+from src.data.preprocess import preprocess_image
 from src.inference.postprocessing import logits_to_segmentation
 from src.inference.sliding_window import SlidingWindowInferer
 from src.model.builder import load_voxtell_model
 from src.text.encoder import TextPromptEncoder
+from src.utils.reorientation import reorient_seg_from_props
 
 
 class VoxTellPredictor:
@@ -50,7 +53,6 @@ class VoxTellPredictor:
         self.device = device
         if device.type == 'cuda':
             torch.backends.cudnn.benchmark = True
-        self.normalization = ZScoreNormalization(intensityproperties={})
 
         # Predictor settings
         self.tile_step_size = 0.5
@@ -84,14 +86,7 @@ class VoxTellPredictor:
                 - Original image shape
         """
 
-        if data.ndim == 3:
-            data = data[None]  # add channel axis
-        data = data.astype(np.float32)  # this creates a copy
-        original_shape = data.shape[1:]
-        data, _, bbox = crop_to_nonzero(data, None)
-        data = self.normalization.run(data, None)
-        data = torch.from_numpy(data)
-        return data, bbox, original_shape
+        return preprocess_image(data)
     
     @torch.inference_mode()
     def embed_text_prompts(self, text_prompts: Union[List[str], str]) -> torch.Tensor:
@@ -179,31 +174,114 @@ class VoxTellPredictor:
         return logits_to_segmentation(prediction, bbox, orig_shape)
 
 
-if __name__ == '__main__':
-    from pathlib import Path
-    from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
+def get_reader_writer(file_path: str):
+    suffix = Path(file_path).suffix.lower()
 
-    # Default paths - modify these as needed
-    DEFAULT_IMAGE_PATH = "/path/to/your/image.nii.gz"
-    DEFAULT_MODEL_DIR = "/path/to/your/model/directory"
-    
-    # Configuration
-    image_path = DEFAULT_IMAGE_PATH
-    model_dir = DEFAULT_MODEL_DIR
-    text_prompts = ["liver", "right kidney", "left kidney", "spleen"]
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    
-    # Load image
-    img, props = NibabelIOWithReorient().read_images([image_path])
-    
-    # Initialize predictor and run inference
-    predictor = VoxTellPredictor(model_dir=model_dir, device=device)
-    voxtell_seg = predictor.predict_single_image(img, text_prompts)
-    
-    # Visualize results, we reccommend using napari for 3D visualization
-    import napari
-    viewer = napari.Viewer()
-    viewer.add_image(img, name='image')
-    for i, prompt in enumerate(text_prompts):
-        viewer.add_labels(voxtell_seg[i], name=f'voxtell_{prompt}')
-    napari.run()
+    if suffix in [".nii", ".gz"]:
+        return NibabelIOWithReorient()
+
+    raise ValueError(
+        f"Unsupported file format: {suffix}. Only NIfTI supported."
+    )
+
+
+def save_segmentation(segmentation, output_file: Path):
+    nibabel.save(segmentation, output_file)
+
+
+def save_all_segmentations(
+    segmentations,
+    output_folder: Path,
+    input_path: Path,
+    prompts: List[str],
+    save_combined: bool = False,
+    verbose: bool = False,
+):
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    input_filename = input_path.stem
+    if input_filename.endswith(".nii"):
+        input_filename = input_filename[:-4]
+
+    suffix = ".nii.gz" if input_path.suffix == ".gz" else input_path.suffix
+
+    output_files = []
+
+    if save_combined:
+        if len(prompts) > 1 and verbose:
+            print("WARNING: combining multi-label segmentation")
+
+        if len(prompts) == 1:
+            out_file = output_folder / f"{input_filename}{suffix}"
+            save_segmentation(segmentations[0], out_file)
+        else:
+            combined = np.zeros_like(segmentations[0], dtype=np.uint8)
+
+            for i, seg in enumerate(segmentations):
+                combined[seg > 0] = i + 1
+
+            out_file = output_folder / f"{input_filename}{suffix}"
+            save_segmentation(combined, out_file)
+
+        output_files.append(out_file)
+
+    else:
+        for i, prompt in enumerate(prompts):
+            safe = "".join(
+                c if c.isalnum() or c in (" ", "_") else "_"
+                for c in prompt
+            ).replace(" ", "_")
+
+            out_file = output_folder / f"{input_filename}_{safe}{suffix}"
+            save_segmentation(segmentations[i], out_file)
+            output_files.append(out_file)
+
+    return output_files
+
+
+def predict_image(
+    predictor,
+    input_path: str | Path,
+    prompts: List[str],
+    verbose: bool = False,
+):
+    input_path = Path(input_path)
+
+    if verbose:
+        print(f"Loading image: {input_path}")
+
+    reader = get_reader_writer(str(input_path))
+    img, props = reader.read_images([str(input_path)])
+
+    if verbose:
+        print(f"Image shape: {img.shape}")
+        print(f"Prompts: {prompts}")
+        print("Running prediction...")
+
+    segmentations = predictor.predict_single_image(img, prompts)
+    segmentations = [
+        reorient_seg_from_props(seg, props)
+        for seg in segmentations
+    ]
+
+    if verbose:
+        print("Prediction completed")
+
+    return segmentations
+
+
+def get_predictor(model_path, device):
+    model_path = Path(model_path)
+
+    if not (model_path / "plans.json").exists():
+        raise FileNotFoundError("plans.json missing")
+
+    if not (model_path / "fold_0" / "checkpoint_final.pth").exists():
+        raise FileNotFoundError("checkpoint missing")
+
+    print(f"Loading model from {model_path}")
+
+    return VoxTellPredictor(
+        model_dir=str(model_path),
+        device=device,
+    )

@@ -19,8 +19,13 @@ def _resolve_arch_kwargs(arch_kwargs: dict, required_import_keys: list[str]) -> 
     return resolved
 
 
-def load_voxtell_model(model_dir: str | Path) -> tuple[VoxTellModel, Tuple[int, ...]]:
+def load_voxtell_model(
+    model_dir: str | Path,
+    deep_supervision: bool = False,
+    model_overrides: dict | None = None,
+) -> tuple[VoxTellModel, Tuple[int, ...]]:
     model_dir = Path(model_dir)
+    model_overrides = model_overrides or {}
     plans = load_json(str(model_dir / "plans.json"))
     configuration = plans["configurations"]["3d_fullres"]
 
@@ -34,13 +39,13 @@ def load_voxtell_model(model_dir: str | Path) -> tuple[VoxTellModel, Tuple[int, 
     network = VoxTellModel(
         input_channels=1,
         **arch_kwargs,
-        decoder_layer=4,
-        text_embedding_dim=2560,
-        num_maskformer_stages=5,
-        num_heads=32,
-        query_dim=2048,
-        project_to_decoder_hidden_dim=2048,
-        deep_supervision=False,
+        decoder_layer=model_overrides.get("decoder_layer", 4),
+        text_embedding_dim=model_overrides.get("text_embedding_dim", 2560),
+        num_maskformer_stages=model_overrides.get("num_maskformer_stages", 5),
+        num_heads=model_overrides.get("num_heads", 32),
+        query_dim=model_overrides.get("query_dim", 2048),
+        project_to_decoder_hidden_dim=model_overrides.get("project_to_decoder_hidden_dim", 2048),
+        deep_supervision=deep_supervision,
     )
 
     checkpoint = torch.load(

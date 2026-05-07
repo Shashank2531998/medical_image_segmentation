@@ -1,8 +1,11 @@
 dataset:
-  train_paths: []
-  val_paths: []
+  name: aeropath
+  train_root: ./data/AeroPath/
+  val_fraction: 0.2
+  seed: 42
   batch_size: 1
   num_workers: 0
+  patch_size: [192, 192, 192]
 
 model:
   dir: ./models/voxtell_v1.1

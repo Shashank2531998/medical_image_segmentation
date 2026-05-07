@@ -10,6 +10,10 @@ from typing import Dict
 import nibabel as nib
 import numpy as np
 from nibabel.orientations import io_orientation, axcodes2ornt, ornt_transform
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def reorient_seg_to_original(seg_data: np.ndarray, properties: dict) -> nib.Nifti1Image:
@@ -46,9 +50,9 @@ def reorient_seg_to_original(seg_data: np.ndarray, properties: dict) -> nib.Nift
     
     # Verify affine matches
     if not np.allclose(original_affine, seg_nib_reoriented.affine):
-        print(f'WARNING: Restored affine does not match original affine')
-        print(f'Original affine:\n{original_affine}')
-        print(f'Restored affine:\n{seg_nib_reoriented.affine}')
+        logger.warning("Restored affine does not match original affine")
+        logger.warning("Original affine:\n%s", original_affine)
+        logger.warning("Restored affine:\n%s", seg_nib_reoriented.affine)
     
     return seg_nib_reoriented
 
@@ -63,7 +67,7 @@ def reorient_seg_from_props(seg: np.ndarray, properties: dict):
     from_canonical = ornt_transform(ras_ornt, img_ornt)
     seg_nib_reoriented = seg_nib.as_reoriented(from_canonical)
     if not np.allclose(properties['nibabel_stuff']['original_affine'], seg_nib_reoriented.affine):
-        print(f'WARNING: Restored affine does not match original affine.')
-        print(f'Original affine\n', properties['nibabel_stuff']['original_affine'])
-        print(f'Restored affine\n', seg_nib_reoriented.affine)
+        logger.warning("Restored affine does not match original affine.")
+        logger.warning("Original affine\n%s", properties['nibabel_stuff']['original_affine'])
+        logger.warning("Restored affine\n%s", seg_nib_reoriented.affine)
     return seg_nib_reoriented

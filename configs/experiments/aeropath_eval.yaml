@@ -1,6 +1,6 @@
 dataset:
   name: aeropath
-  root: ./dataset/AeroPath/
+  root: ./data/AeroPath/
   max_cases: 2
 
 model:

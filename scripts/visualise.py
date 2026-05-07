@@ -31,6 +31,7 @@ if "--offscreen" in sys.argv:
 import numpy as np
 import nibabel as nib
 import napari
+from src.utils.logging import get_logger
 
 
 # ============================================================================
@@ -44,6 +45,9 @@ DATA_DIR = PROJECT_ROOT / "data"
 # Predictions directory
 PREDICTIONS_DIR = PROJECT_ROOT / "predictions"
 # ============================================================================
+
+
+logger = get_logger(__name__)
 
 
 def visualize_predictions(
@@ -73,12 +77,12 @@ def visualize_predictions(
     if not Path(predictions_dir).exists():
         raise FileNotFoundError(f"Predictions directory not found: {predictions_dir}")
     
-    print("=" * 70)
-    print("VoxTell Prediction Visualizer")
-    print("=" * 70)
+    logger.info("%s", "=" * 70)
+    logger.info("VoxTell Prediction Visualizer")
+    logger.info("%s", "=" * 70)
     
     # Load original image
-    print(f"\nLoading image: {image_path}")
+    logger.info("Loading image: %s", image_path)
     nifti_img = nib.load(image_path)
     img_data = nifti_img.get_fdata()
     
@@ -90,11 +94,11 @@ def visualize_predictions(
     else:
         img_normalized = img_data
     
-    print(f"Image shape: {img_data.shape}")
-    print(f"Image value range: [{img_data.min():.2f}, {img_data.max():.2f}]")
+    logger.info("Image shape: %s", img_data.shape)
+    logger.info("Image value range: [%.2f, %.2f]", img_data.min(), img_data.max())
     
     # Create Napari viewer
-    print("\nInitializing Napari viewer...")
+    logger.info("Initializing Napari viewer...")
     viewer = napari.Viewer()
     
     # Add original image
@@ -112,10 +116,10 @@ def visualize_predictions(
     )
     
     if not seg_files:
-        print(f"\n⚠️  Warning: No segmentation files found in {predictions_dir}")
-        print("Expected files like: seg_liver.nii.gz, seg_kidney.nii.gz, etc.")
+        logger.warning("No segmentation files found in %s", predictions_dir)
+        logger.info("Expected files like: seg_liver.nii.gz, seg_kidney.nii.gz, etc.")
     else:
-        print(f"\nFound {len(seg_files)} segmentation masks:")
+        logger.info("Found %d segmentation masks", len(seg_files))
         
         # Color palette for different structures
         colors = [
@@ -130,7 +134,7 @@ def visualize_predictions(
         ]
         
         for idx, seg_file in enumerate(seg_files):
-            print(f"  [{idx + 1}] {seg_file.name}")
+            logger.info("  [%d] %s", idx + 1, seg_file.name)
             
             # Load segmentation mask
             seg_nifti = nib.load(seg_file)
@@ -155,7 +159,7 @@ def visualize_predictions(
         combined_file = predictions_path / "seg_combined.nii"
     
     if combined_file.exists():
-        print(f"\nLoading combined segmentation: {combined_file.name}")
+        logger.info("Loading combined segmentation: %s", combined_file.name)
         combined_nifti = nib.load(combined_file)
         combined_data = combined_nifti.get_fdata().astype(np.uint8)
         
@@ -166,35 +170,35 @@ def visualize_predictions(
             opacity=0.3,
         )
     
-    print("\n" + "=" * 70)
+    logger.info("%s", "=" * 70)
     
     if offscreen:
         if not output_dir:
             raise ValueError("output_dir must be specified for offscreen rendering")
         
         os.makedirs(output_dir, exist_ok=True)
-        print(f"Saving screenshots to: {output_dir}")
+        logger.info("Saving screenshots to: %s", output_dir)
         
         # Save screenshot at current slice
         viewer.camera.zoom = 1.5
         screenshot_path = os.path.join(output_dir, "visualization.png")
         screenshot = viewer.screenshot()
         screenshot.save(screenshot_path)
-        print(f"✓ Saved: {screenshot_path}")
+        logger.info("Saved: %s", screenshot_path)
         
-        print("=" * 70)
+        logger.info("%s", "=" * 70)
     else:
-        print("Napari Viewer Controls:")
-        print("=" * 70)
-        print("  • Left panel: Toggle layers on/off")
-        print("  • Scroll wheel: Zoom in/out")
-        print("  • Mouse drag: Pan")
-        print("  • Arrow keys: Navigate slices (for 3D data)")
-        print("  • L: Toggle selected layer visibility")
-        print("  • D: Delete selected layer")
-        print("  • R: Reset view")
-        print("=" * 70)
-        print("\nStarting Napari viewer...")
+        logger.info("Napari Viewer Controls:")
+        logger.info("%s", "=" * 70)
+        logger.info("  - Left panel: Toggle layers on/off")
+        logger.info("  - Scroll wheel: Zoom in/out")
+        logger.info("  - Mouse drag: Pan")
+        logger.info("  - Arrow keys: Navigate slices (for 3D data)")
+        logger.info("  - L: Toggle selected layer visibility")
+        logger.info("  - D: Delete selected layer")
+        logger.info("  - R: Reset view")
+        logger.info("%s", "=" * 70)
+        logger.info("Starting Napari viewer...")
         
         # Run interactive viewer
         napari.run()
@@ -228,30 +232,30 @@ def main():
     
     # Validate directories
     if not DATA_DIR.exists():
-        print(f"\n❌ Error: Data directory not found: {DATA_DIR}")
-        print(f"Please create the directory and place your medical image there:")
-        print(f"  mkdir -p {DATA_DIR}")
-        print(f"  cp /path/to/your/image.nii.gz {DATA_DIR}/{args.image}")
+        logger.error("Data directory not found: %s", DATA_DIR)
+        logger.info("Please create the directory and place your medical image there:")
+        logger.info("  mkdir -p %s", DATA_DIR)
+        logger.info("  cp /path/to/your/image.nii.gz %s/%s", DATA_DIR, args.image)
         sys.exit(1)
     
     if not image_path.exists():
-        print(f"\n❌ Error: Image not found: {image_path}")
-        print(f"Please place your medical image in the data directory:")
-        print(f"  cp /path/to/your/image.nii.gz {image_path}")
-        print(f"\nAvailable files in {DATA_DIR}:")
+        logger.error("Image not found: %s", image_path)
+        logger.info("Please place your medical image in the data directory:")
+        logger.info("  cp /path/to/your/image.nii.gz %s", image_path)
+        logger.info("Available files in %s:", DATA_DIR)
         files = list(DATA_DIR.glob("*"))
         if files:
             for f in files:
                 if f.is_file():
-                    print(f"  - {f.name}")
+                    logger.info("  - %s", f.name)
         else:
-            print("  (directory is empty)")
+            logger.info("  (directory is empty)")
         sys.exit(1)
     
     if not PREDICTIONS_DIR.exists():
-        print(f"\n❌ Error: Predictions directory not found: {PREDICTIONS_DIR}")
-        print(f"Please run prediction first:")
-        print(f"  python predict.py --image {args.image} --prompts 'liver' 'kidney'")
+        logger.error("Predictions directory not found: %s", PREDICTIONS_DIR)
+        logger.info("Please run prediction first:")
+        logger.info("  python predict.py --image %s --prompts 'liver' 'kidney'", args.image)
         sys.exit(1)
     
     try:
@@ -264,12 +268,10 @@ def main():
         )
         
     except FileNotFoundError as e:
-        print(f"\n❌ Error: {e}", file=sys.stderr)
+        logger.error("Error: %s", e)
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error: %s", e)
         sys.exit(1)
 
 

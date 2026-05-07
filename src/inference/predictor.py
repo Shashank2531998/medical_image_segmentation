@@ -15,6 +15,10 @@ from src.inference.sliding_window import SlidingWindowInferer
 from src.model.builder import load_voxtell_model
 from src.text.encoder import TextPromptEncoder
 from src.utils.reorientation import reorient_seg_from_props
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class VoxTellPredictor:
@@ -209,7 +213,7 @@ def save_all_segmentations(
 
     if save_combined:
         if len(prompts) > 1 and verbose:
-            print("WARNING: combining multi-label segmentation")
+            logger.warning("Combining multi-label segmentation")
 
         if len(prompts) == 1:
             out_file = output_folder / f"{input_filename}{suffix}"
@@ -248,15 +252,15 @@ def predict_image(
     input_path = Path(input_path)
 
     if verbose:
-        print(f"Loading image: {input_path}")
+        logger.info("Loading image: %s", input_path)
 
     reader = get_reader_writer(str(input_path))
     img, props = reader.read_images([str(input_path)])
 
     if verbose:
-        print(f"Image shape: {img.shape}")
-        print(f"Prompts: {prompts}")
-        print("Running prediction...")
+        logger.info("Image shape: %s", img.shape)
+        logger.info("Prompts: %s", prompts)
+        logger.info("Running prediction...")
 
     segmentations = predictor.predict_single_image(img, prompts)
     segmentations = [
@@ -265,7 +269,7 @@ def predict_image(
     ]
 
     if verbose:
-        print("Prediction completed")
+        logger.info("Prediction completed")
 
     return segmentations
 
@@ -279,7 +283,7 @@ def get_predictor(model_path, device):
     if not (model_path / "fold_0" / "checkpoint_final.pth").exists():
         raise FileNotFoundError("checkpoint missing")
 
-    print(f"Loading model from {model_path}")
+    logger.info("Loading model from %s", model_path)
 
     return VoxTellPredictor(
         model_dir=str(model_path),

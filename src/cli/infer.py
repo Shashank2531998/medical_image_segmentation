@@ -5,6 +5,10 @@ import torch
 
 from src.inference.predictor import predict_image, get_predictor, save_all_segmentations
 from src.utils.io import make_experiment_dir
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def parse_args():
@@ -14,7 +18,6 @@ def parse_args():
     p.add_argument("--model", required=True)
     p.add_argument("--prompts", nargs="+", required=True)
     p.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
-    p.add_argument("--gpu", type=int, default=0)
     return p.parse_args()
 
 
@@ -22,12 +25,7 @@ def main():
     args = parse_args()
 
     input_path = Path(args.input)
-    output_path = Path(args.output)
-
-    if args.device == "cuda" and torch.cuda.is_available():
-        device = torch.device(f"cuda:{args.gpu}")
-    else:
-        device = torch.device("cpu")
+    device = torch.device(args.device)
 
     predictor = get_predictor(args.model, device)
 
@@ -43,7 +41,7 @@ def main():
     )
 
     save_all_segmentations(segmentations, predictions_out, input_path, args.prompts, save_combined=False, verbose=True)
-    print(f"Saved predictions to {predictions_out}")
+    logger.info("Saved predictions to %s", predictions_out)
 
 
 if __name__ == '__main__':

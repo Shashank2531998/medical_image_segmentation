@@ -6,28 +6,24 @@ import nibabel as nib
 import numpy as np
 import torch
 
-from src.data.adapters.aeropath import AeroPathAdapter
+from src.data.adapters import get_dataset_adapter
 from src.data.adapters.base import DatasetAdapter
 from src.evaluation.metrics import dice_coefficient
 from src.inference.predictor import predict_image, get_predictor
+from src.utils.logging import get_logger
+from src.utils.config import load_config, save_config_snapshot
+from src.utils.io import make_experiment_dir, write_metrics
+
+
+logger = get_logger(__name__)
 
 
 # ============================================================================  
 # DATASET REGISTRY  
 # ============================================================================  
 
-DATASET_ADAPTERS = {
-    "aeropath": AeroPathAdapter,
-}
-
-
 def get_adapter(dataset_name: str, dataset_root: Path) -> DatasetAdapter:
-    if dataset_name not in DATASET_ADAPTERS:
-        raise ValueError(
-            f"Unknown dataset: {dataset_name}. "
-            f"Available: {list(DATASET_ADAPTERS.keys())}"
-        )
-    return DATASET_ADAPTERS[dataset_name](dataset_root)
+    return get_dataset_adapter(dataset_name, dataset_root)
 
 
 # ============================================================================  
@@ -40,7 +36,7 @@ def _load_binary_mask(path: Path) -> np.ndarray:
 
 
 def evaluate_case(predictor, case, prompts: list[str]) -> list[dict]:
-    print(f"\n[CASE] {case.case_id}")
+    logger.info("[CASE] %s", case.case_id)
 
     segmentations = predict_image(
         predictor,
@@ -60,9 +56,10 @@ def evaluate_case(predictor, case, prompts: list[str]) -> list[dict]:
         for prompt, pred in zip(prompts, segmentations):
 
             if target_name not in prompt.lower():
-                print(
-                    f"Skipping Dice calculation for prompt {prompt} "
-                    f"in case {case.case_id}"
+                logger.info(
+                    "Skipping Dice calculation for prompt %s in case %s",
+                    prompt,
+                    case.case_id,
                 )
                 continue
 
@@ -80,7 +77,7 @@ def evaluate_case(predictor, case, prompts: list[str]) -> list[dict]:
                 "dice": float(score),
             })
 
-            print(f"  {prompt} → {target_name}: {score:.4f}")
+            logger.info("  %s -> %s: %.4f", prompt, target_name, score)
 
     return results
 
@@ -100,15 +97,15 @@ def evaluate_dataset(
     if max_cases:
         cases = cases[:max_cases]
 
-    print(f"Evaluating {len(cases)} cases")
-    print(f"Prompts: {prompts}")
+    logger.info("Evaluating %d cases", len(cases))
+    logger.info("Prompts: %s", prompts)
 
     predictor = get_predictor(model_dir, device)
 
     prompt_scores = defaultdict(list)
 
     for i, case in enumerate(cases):
-        print(f"\n[{i+1}/{len(cases)}] {case.case_id}")
+        logger.info("[%d/%d] %s", i + 1, len(cases), case.case_id)
 
         case_results = evaluate_case(predictor, case, prompts)
 
@@ -125,3 +122,40 @@ def evaluate_dataset(
         }
 
     return summary
+
+
+def run_eval_from_config(config_path: str | Path, split_key: str, metrics_name: str) -> Path:
+    cfg = load_config(Path(config_path))
+
+    dataset_cfg = cfg.get("dataset", {})
+    model_cfg = cfg.get("model", {})
+    split_cfg = cfg.get(split_key, cfg.get("evaluation", {}))
+
+    dataset_name = split_cfg.get("dataset_name", dataset_cfg.get("name"))
+    dataset_root = Path(split_cfg.get("dataset_root", dataset_cfg.get("root")))
+    max_cases = split_cfg.get("max_cases", dataset_cfg.get("max_cases", None))
+
+    model_dir = Path(model_cfg["dir"])
+    device = torch.device(model_cfg.get("device", "cuda"))
+    adapter = get_adapter(dataset_name, dataset_root)
+    prompts = split_cfg.get("prompts", cfg.get("evaluation", {}).get("prompts", []))
+    if not prompts:
+        prompts = adapter.default_prompts()
+
+    if not prompts:
+        raise ValueError(f"No prompts provided in '{split_key}' or derived from dataset adapter")
+
+    results = evaluate_dataset(
+        dataset_name=dataset_name,
+        dataset_root=dataset_root,
+        prompts=prompts,
+        model_dir=model_dir,
+        device=device,
+        max_cases=max_cases,
+    )
+
+    out_root = cfg.get("output", {}).get("experiment_root", "experiments")
+    dirs = make_experiment_dir(out_root)
+    save_config_snapshot(cfg, dirs["root"], name="config.yaml")
+    out_file = write_metrics(results, dirs["root"], name=metrics_name)
+    return out_file

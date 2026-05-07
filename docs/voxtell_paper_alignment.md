@@ -16,8 +16,8 @@ Source: arXiv 2511.11450 (VoxTell: Free-Text Promptable Universal 3D Medical Ima
   - `deep_supervision_loss` supports multi-scale output supervision with weighted stages.
 - Optimizer/scheduler defaults moved toward paper settings:
   - SGD + polynomial LR schedule (configurable).
-- Validation and testing CLIs:
-  - `src/cli/validate.py` and `src/cli/test.py` added.
+- Validation/testing via split-aware evaluator:
+  - `src/cli/evaluate.py --split evaluation|validation|testing`.
 
 ## Partially Aligned / Remaining Gaps
 

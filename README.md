@@ -12,7 +12,9 @@ Experiment layout
 Quick CLI
 
 - Train: python src/cli/train.py --config configs/experiments/train_debug.yaml
-- Evaluate: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml
+- Evaluate: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml --split evaluation
+- Validate: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml --split validation
+- Test: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml --split testing
 - Infer: python src/cli/infer.py --input <image> --output <outdir> --model <modeldir> --prompts "liver"
 
 Notes

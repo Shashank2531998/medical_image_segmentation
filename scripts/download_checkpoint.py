@@ -16,6 +16,10 @@ import argparse
 import os
 from pathlib import Path
 from huggingface_hub import snapshot_download
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def download_voxtell_checkpoint(model_name: str, download_dir: str) -> str:
@@ -32,8 +36,8 @@ def download_voxtell_checkpoint(model_name: str, download_dir: str) -> str:
     # Create download directory if it doesn't exist
     os.makedirs(download_dir, exist_ok=True)
     
-    print(f"Downloading {model_name} from Hugging Face Hub...")
-    print(f"Download directory: {download_dir}")
+    logger.info("Downloading %s from Hugging Face Hub...", model_name)
+    logger.info("Download directory: %s", download_dir)
     
     download_path = snapshot_download(
         repo_id="mrokuss/VoxTell",
@@ -44,8 +48,8 @@ def download_voxtell_checkpoint(model_name: str, download_dir: str) -> str:
     # Path to model directory
     model_path = os.path.join(download_path, model_name)
     
-    print(f"✓ Model downloaded successfully!")
-    print(f"Model path: {model_path}")
+    logger.info("Model downloaded successfully")
+    logger.info("Model path: %s", model_path)
     
     return model_path
 
@@ -72,8 +76,8 @@ def main():
         download_dir=args.download_dir
     )
     
-    print(f"\nTo use this model in your code:")
-    print(f"  model_path = '{model_path}'")
+    logger.info("To use this model in your code:")
+    logger.info("  model_path = '%s'", model_path)
 
 
 if __name__ == "__main__":

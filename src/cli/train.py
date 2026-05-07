@@ -6,6 +6,10 @@ from src.training.trainer import Trainer
 from src.data.datamodule import VoxTellDataModule
 from src.utils.config import load_config
 from src.utils.io import make_experiment_dir
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 def parse_args():
@@ -16,6 +20,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    logger.info("Loading training config from %s", args.config)
     cfg = load_config(Path(args.config))
 
     data_cfg = cfg.get("dataset", {})
@@ -27,7 +32,8 @@ def main():
     dirs = make_experiment_dir(out_root)
     # save resolved config
     from src.utils.config import save_config_snapshot
-    save_config_snapshot(cfg, dirs["root"]) 
+    save_config_snapshot(cfg, dirs["root"])
+    logger.info("Experiment root: %s", dirs["root"])
 
     # make trainer write artifacts into this experiment root
     train_cfg["output_dir"] = str(dirs["root"])
@@ -35,6 +41,7 @@ def main():
     datamodule = VoxTellDataModule(data_cfg)
     trainer = Trainer(train_cfg, model_cfg)
 
+    logger.info("Starting training")
     trainer.fit(datamodule)
 
 

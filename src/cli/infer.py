@@ -2,6 +2,11 @@
 from pathlib import Path
 import argparse
 import torch
+import os
+
+# Set Hugging Face Hub environment variables for ma
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 from src.inference.predictor import predict_image, get_predictor, save_all_segmentations
 from src.utils.io import make_experiment_dir

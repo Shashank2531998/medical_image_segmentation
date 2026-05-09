@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -11,6 +11,12 @@ from torch.utils.data import Dataset
 from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
 
 from src.data.preprocess import preprocess_image
+from src.data.utils import (
+    build_prompt_mask_stack,
+    crop_mask_to_bbox,
+    extract_random_patch,
+    sample_prompt_triplet,
+)
 
 
 @dataclass
@@ -38,77 +44,45 @@ class VoxTellDataset(Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def _crop_mask_to_bbox(self, mask: np.ndarray, bbox: Any) -> np.ndarray:
-        if isinstance(bbox, list) and len(bbox) == 3:
-            slices = tuple(slice(int(start), int(end)) for start, end in bbox)
-            return mask[slices]
-        if isinstance(bbox, tuple):
-            return mask[bbox]
-        return mask
-
     def __getitem__(self, idx: int):
         sample = self.samples[idx]
         img, _ = self.reader.read_images([str(sample.image_path)])
+        print(f"Image Path: {str(sample.image_path)}")
+        print(f"Original Image Shape: {img.shape}")
         img_tensor, bbox, _ = preprocess_image(img)
         if sample.mask_path is not None:
             mask_arr, _ = self.reader.read_images([str(sample.mask_path)])
+            print(f"Original Mask shape: {mask_arr.shape}")
             mask = mask_arr[0].astype(np.uint8)
-            mask = self._crop_mask_to_bbox(mask, bbox)
+            mask = crop_mask_to_bbox(mask, bbox)
         else:
             mask = np.zeros_like(img_tensor[0].numpy(), dtype=np.uint8)
 
         mask_tensor = torch.from_numpy(mask)
 
-        # Prompt sampling: support single prompt or lists provided by TrainingSample
-        # Desired behavior: return 2 positive + 1 negative prompts per sample when possible
-        prompts_out: List[str]
-        if sample.prompts and isinstance(sample.prompts, (list, tuple)):
-            positives = list(sample.prompts)
-        else:
-            positives = ["organ"]
+        prompts_out, prompt_is_positive = sample_prompt_triplet(sample.prompts, sample.negatives)
+        print(f"Sample Negatives - {sample.negatives}")
+        img_patch, mask_patch, (z0, y0, x0) = extract_random_patch(img_tensor, mask_tensor, self.patch_size)
+        mask_patches = build_prompt_mask_stack(mask_patch, prompt_is_positive)
 
-        # choose two positives (with replacement if needed)
-        if len(positives) >= 2:
-            pos_choices = list(np.random.choice(positives, size=2, replace=False))
-        else:
-            pos_choices = [positives[0], positives[0]]
+        print("===== DATASET DEBUG =====")
+        print("Num samples:", len(self.samples))
+        print("Patch size:", self.patch_size)
 
-        # negative prompt: use provided negatives or synthesize
-        if sample.negatives and len(sample.negatives) > 0:
-            neg = str(np.random.choice(sample.negatives))
-        else:
-            neg = f"not {pos_choices[0]}"
+        print("Image tensor shape:", img_tensor.shape)
+        print("Mask shape:", mask.shape)
 
-        prompts_out = [pos_choices[0], pos_choices[1], neg]
+        print("Mask unique values:", np.unique(mask))
 
-        # Patch sampling: extract random patch of size self.patch_size from image and mask
-        # img_tensor: (C, D, H, W); mask_tensor: (D, H, W)
-        c, d, h, w = img_tensor.shape
-        pz, py, px = self.patch_size
+        print("Prompts example:", prompts_out)
 
-        def _pad_if_needed(t: torch.Tensor, target: Tuple[int, int, int]):
-            _, dz, hy, wx = t.shape
-            pad_z = max(0, target[0] - dz)
-            pad_y = max(0, target[1] - hy)
-            pad_x = max(0, target[2] - wx)
-            if pad_z or pad_y or pad_x:
-                pad = (0, pad_x, 0, pad_y, 0, pad_z)
-                return torch.nn.functional.pad(t, pad)
-            return t
-
-        img_tensor = _pad_if_needed(img_tensor, (pz, py, px))
-        mask_tensor = _pad_if_needed(mask_tensor.unsqueeze(0), (pz, py, px)).squeeze(0)
-
-        _, d2, h2, w2 = img_tensor.shape
-        z0 = int(np.random.randint(0, max(1, d2 - pz + 1)))
-        y0 = int(np.random.randint(0, max(1, h2 - py + 1)))
-        x0 = int(np.random.randint(0, max(1, w2 - px + 1)))
-
-        img_patch = img_tensor[:, z0 : z0 + pz, y0 : y0 + py, x0 : x0 + px]
-        mask_patch = mask_tensor[z0 : z0 + pz, y0 : y0 + py, x0 : x0 + px]
+        print("Patch crop origin:", (z0, y0, x0))
+        print("Patch shape image:", img_patch.shape)
+        print("Patch shape mask:", mask_patch.shape)
 
         return {
             "image": img_patch,
-            "mask": mask_patch,
+            # list of masks aligned with `prompts` (positive, positive, negative)
+            "mask": mask_patches,
             "prompts": prompts_out,
         }

@@ -13,6 +13,9 @@ model:
 training:
   epochs: 1
   device: cpu
+  deep_supervision: false
   optimizer:
     lr: 1e-4
   output_dir: ./experiments/exp_debug
+  debug_save_artifacts: true
+  debug_save_interval: 1

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 from pathlib import Path
+import os
+
+# Set Hugging Face Hub environment variables for ma
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 from src.training.trainer import Trainer
 from src.data.datamodule import VoxTellDataModule

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 import argparse
+import os
+
+# Set Hugging Face Hub environment variables for ma
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 from src.evaluation.eval import run_eval_from_config
 from src.utils.logging import get_logger

@@ -21,7 +21,7 @@ class TextPromptEncoder:
         self.text_backbone = AutoModel.from_pretrained(model_name).eval()
         self.max_length = max_length
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def embed(self, text_prompts: Union[List[str], List[List[str]], str]) -> torch.Tensor:
         # Support single string, flat list of prompts, or list-of-lists for per-sample prompts
         nested = False

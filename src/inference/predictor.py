@@ -10,6 +10,7 @@ from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
 from nnunetv2.utilities.helpers import dummy_context
 
 from src.data.preprocess import preprocess_image
+from src.data.utils import extract_random_image_patch
 from src.inference.postprocessing import logits_to_segmentation
 from src.inference.sliding_window import SlidingWindowInferer
 from src.model.builder import load_voxtell_model
@@ -65,6 +66,7 @@ class VoxTellPredictor:
         self.text_encoder = TextPromptEncoder(text_encoding_model, device=self.device)
 
         self.network, self.patch_size = load_voxtell_model(model_dir)
+        self.network = self.network.to(device)
         self.sliding_window = SlidingWindowInferer(
             self.network,
             self.patch_size,
@@ -92,7 +94,7 @@ class VoxTellPredictor:
 
         return preprocess_image(data)
     
-    @torch.inference_mode()
+    @torch.no_grad()
     def embed_text_prompts(self, text_prompts: Union[List[str], str]) -> torch.Tensor:
         """
         Embed text prompts into vector representations.
@@ -108,7 +110,7 @@ class VoxTellPredictor:
         """
         return self.text_encoder.embed(text_prompts)
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def predict_sliding_window_return_logits(
         self,
         input_image: torch.Tensor,
@@ -176,6 +178,36 @@ class VoxTellPredictor:
         prediction = self.predict_sliding_window_return_logits(data, embeddings).to('cpu')
 
         return logits_to_segmentation(prediction, bbox, orig_shape)
+
+    def predict_single_image_on_random_patch(
+        self,
+        data: np.ndarray,
+        text_prompts: Union[str, List[str]],
+        seed: int = 42,
+    ) -> np.ndarray:
+        """
+        Predict segmentation masks on a random patch extracted after preprocessing.
+
+        This follows the same pipeline as predict_single_image, but crops a random
+        patch from the preprocessed image before embedding prompts and running inference.
+
+        Args:
+            data: Image data in RAS orientation (3D or 4D with channel dimension).
+            text_prompts: Single text prompt or list of text prompts.
+            seed: Seed for deterministic random patch sampling.
+
+        Returns:
+            Segmentation masks for the sampled patch as a numpy array.
+        """
+        data, _, _ = self.preprocess(data)
+        random_patch, _ = extract_random_image_patch(data, self.patch_size, seed=seed)
+
+        embeddings = self.embed_text_prompts(text_prompts)
+        prediction = self.network(random_patch.unsqueeze(0).to(self.device), embeddings.to(self.device))
+
+        patch_shape = tuple(random_patch.shape[1:])
+        patch_bbox = tuple(slice(0, size) for size in patch_shape)
+        return logits_to_segmentation(prediction, patch_bbox, patch_shape)
 
 
 def get_reader_writer(file_path: str):
@@ -262,7 +294,7 @@ def predict_image(
         logger.info("Prompts: %s", prompts)
         logger.info("Running prediction...")
 
-    segmentations = predictor.predict_single_image(img, prompts)
+    segmentations = predictor.predict_single_image_on_random_patch(img, prompts)
     segmentations = [
         reorient_seg_from_props(seg, props)
         for seg in segmentations

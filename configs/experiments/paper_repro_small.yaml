@@ -17,6 +17,7 @@ training:
   seed: 42
   use_deterministic_algorithms: false
   reinit_weights: false
+  deep_supervision: false
   optimizer:
     lr: 0.0001
     weight_decay: 0.00003
@@ -24,3 +25,5 @@ training:
     poly_power: 1.0
     nesterov: true
   output_dir: ./experiments/exp_paper_small
+  debug_save_artifacts: true
+  debug_save_interval: 1

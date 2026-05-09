@@ -1,0 +1,35 @@
+dataset:
+  batch_size: 1
+  name: aeropath
+  patch_size:
+  - 192
+  - 192
+  - 192
+  seed: 42
+  train_max_cases: 2
+  train_root: ./data/AeroPath/
+  val_fraction: 0.2
+  val_max_cases: 2
+model:
+  dir: ./models/voxtell_v1.1
+  overrides:
+    num_maskformer_stages: 1
+training:
+  debug_save_artifacts: true
+  debug_save_interval: 1
+  deep_supervision: false
+  device: cuda
+  epochs: 5
+  freeze_encoder: true
+  model_overrides:
+    num_maskformer_stages: 1
+  optimizer:
+    lr: 0.0001
+    momentum: 0.99
+    nesterov: true
+    poly_power: 1.0
+    weight_decay: 3.0e-05
+  output_dir: ./experiments/exp_paper_small
+  reinit_weights: false
+  seed: 42
+  use_deterministic_algorithms: false

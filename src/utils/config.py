@@ -16,3 +16,12 @@ def save_config_snapshot(cfg: dict, out_dir: Path, name: str = "config.yaml") ->
     with open(out_path, "w") as f:
         yaml.safe_dump(cfg, f)
     return out_path
+
+
+def save_config(cfg: dict, path: str | Path) -> Path:
+    """Save config to file (creates parent directories)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        yaml.safe_dump(cfg, f)
+    return path

@@ -1,54 +1,107 @@
 import torch
 import torch.nn.functional as F
+from typing import List, Tuple
 
 
-def bce_loss_logits(pred_logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    # pred_logits: (B, N, D, H, W) or (B, C, ...); target: (B, D, H, W)
-    # Simplified for single-mask per-sample targets
-    if pred_logits.ndim > target.ndim:
-        # reduce prompts dimension if present
-        pred = pred_logits[:, 0]
+def _stack_target_if_list(target):
+    # support a list of per-prompt masks (for a single sample)
+    if isinstance(target, (list, tuple)) and all(isinstance(t, torch.Tensor) for t in target):
+        stacked = torch.stack(target, dim=1)  # (N, D, H, W) -> (1, N, D, H, W) if needed
+        if stacked.ndim == 4:
+            stacked = stacked.unsqueeze(0)
+        return stacked
+    return target
+
+
+def _align_and_resize_target(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Return target tensor shaped like pred for elementwise loss.
+
+    pred: (B, N, ... ) or (B, ...)
+    target: (B, N, ...), (B, ...), or list -> handled by _stack_target_if_list
+    """
+    target = _stack_target_if_list(target)
+
+    # ensure tensors
+    if not isinstance(target, torch.Tensor):
+        target = torch.tensor(target, dtype=pred.dtype, device=pred.device)
+
+    # if pred has prompt dim but target doesn't, expand target per-prompt
+    if pred.ndim == target.ndim + 1:
+        # pred: (B, N, D, H, W), target: (B, D, H, W)
+        target = target.unsqueeze(1).expand(-1, pred.shape[1], *target.shape[1:])
+
+    # if shapes differ in spatial dims, resize target to match pred spatial size
+    if pred.ndim == target.ndim:
+        # either both (B, N, D, H, W) or both (B, D, H, W)
+        if pred.shape[1:] != target.shape[1:]:
+            # handle both cases by reshaping to (B*N, 1, D, H, W) for interpolate
+            if pred.ndim == 5:
+                B, N = target.shape[0], target.shape[1]
+                t = target.reshape(B * N, 1, *target.shape[-3:]).float()
+                t = F.interpolate(t, size=pred.shape[2:], mode="nearest")
+                target = t.reshape(B, N, *pred.shape[2:]).to(pred.dtype)
+            else:
+                t = target.unsqueeze(1).float()
+                t = F.interpolate(t, size=pred.shape[1:], mode="nearest")
+                target = t.squeeze(1).to(pred.dtype)
+
+    return target.float()
+
+
+def bce_loss_logits(pred_logits: torch.Tensor, target) -> torch.Tensor:
+    """Binary cross-entropy for logits supporting prompt dimension.
+
+    pred_logits: (B, N, D, H, W) or (B, D, H, W)
+    target: tensor or list aligned with prompts; can be (B, N, D, H, W) or (B, D, H, W)
+    """
+    pred = pred_logits
+    target = _align_and_resize_target(pred, target)
+
+    loss = F.binary_cross_entropy_with_logits(pred, target, reduction="none")
+
+    # average over spatial dims then over prompts and batch
+    if pred.ndim == 5:
+        spatial_dims = tuple(range(2, pred.ndim))
     else:
-        pred = pred_logits
-    target = target.float()
-    loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, target)
-    return loss
+        spatial_dims = tuple(range(1, pred.ndim))
+
+    loss = loss.mean(dim=spatial_dims)
+    return loss.mean()
 
 
-def dice_loss_logits(pred_logits: torch.Tensor, target: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    if pred_logits.ndim > target.ndim:
-        pred_logits = pred_logits[:, 0]
-
+def dice_loss_logits(pred_logits: torch.Tensor, target, eps: float = 1e-6) -> torch.Tensor:
     pred = torch.sigmoid(pred_logits).float()
-    target = target.float()
+    target = _align_and_resize_target(pred, target)
 
-    if pred.shape != target.shape:
-        target = F.interpolate(target.unsqueeze(1), size=pred.shape[1:], mode="nearest").squeeze(1)
+    if pred.ndim == 5:
+        reduce_dims = tuple(range(2, pred.ndim))
+    else:
+        reduce_dims = tuple(range(1, pred.ndim))
 
-    reduce_dims = tuple(range(1, pred.ndim))
     intersection = torch.sum(pred * target, dim=reduce_dims)
     denominator = torch.sum(pred, dim=reduce_dims) + torch.sum(target, dim=reduce_dims)
     dice = (2.0 * intersection + eps) / (denominator + eps)
-    return 1.0 - dice.mean()
+    return (1.0 - dice).mean()
 
 
 def combined_seg_loss_logits(
     pred_logits: torch.Tensor,
-    target: torch.Tensor,
+    target,
     bce_weight: float = 1.0,
     dice_weight: float = 1.0,
 ) -> torch.Tensor:
-    if pred_logits.ndim > target.ndim:
-        pred = pred_logits[:, 0]
+    # Do not reduce prompt dimension here; align/resize target accordingly
+    tgt = _align_and_resize_target(pred_logits, target)
+
+    bce = F.binary_cross_entropy_with_logits(pred_logits, tgt, reduction="none")
+    # average spatial dims
+    if pred_logits.ndim == 5:
+        spatial_dims = tuple(range(2, pred_logits.ndim))
     else:
-        pred = pred_logits
+        spatial_dims = tuple(range(1, pred_logits.ndim))
+    bce = bce.mean(dim=spatial_dims).mean()
 
-    tgt = target.float()
-    if pred.shape != tgt.shape:
-        tgt = F.interpolate(tgt.unsqueeze(1), size=pred.shape[1:], mode="nearest").squeeze(1)
-
-    bce = F.binary_cross_entropy_with_logits(pred, tgt)
-    dice = dice_loss_logits(pred_logits, target)
+    dice = dice_loss_logits(pred_logits, tgt)
     return bce_weight * bce + dice_weight * dice
 
 

@@ -50,7 +50,7 @@ class SlidingWindowInferer:
                         )
         return slicers
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def predict_logits(self, data: torch.Tensor, text_embeddings: torch.Tensor) -> torch.Tensor:
         results_device = self.device if self.perform_everything_on_device else torch.device("cpu")
         self.network = self.network.to(self.device)

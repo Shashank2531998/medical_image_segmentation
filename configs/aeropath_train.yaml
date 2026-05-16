@@ -1,0 +1,25 @@
+dataset:
+  name: aeropath
+  train_root: ./data/AeroPath/
+  val_fraction: 0.2
+  seed: 42
+  batch_size: 1
+  patch_size: [192, 192, 192]
+
+model:
+  dir: ./models/voxtell_v1.1
+  device: cuda
+  deep_supervision: false
+  reinit_weights: false
+
+training:
+  epochs: 10
+  seed: 42
+  use_deterministic_algorithms: false
+  optimizer:
+    lr: 0.0001
+    weight_decay: 0.00003
+    momentum: 0.99
+    poly_power: 1.0
+    nesterov: true
+  output_dir: ./experiments/fine_tuning/aeropath

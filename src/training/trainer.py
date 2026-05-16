@@ -3,14 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from src.training.utils import seed_everything
 import torch
 import numpy as np
-import random
+import monai
 
-from src.model.builder import load_voxtell_model
-from src.text.encoder import TextPromptEncoder
-from src.training.optimizer import build_optimizer_and_scheduler
 from src.training.losses import deep_supervision_loss
+from src.training.optimizer import build_optimizer_and_scheduler
 from src.utils.checkpoint import save_checkpoint
 from src.utils.logging import get_logger
 
@@ -18,18 +17,39 @@ logger = get_logger(__name__)
 
 
 class Trainer:
-    def __init__(self, train_cfg: dict | None = None, model_cfg: dict | None = None):
+    def __init__(self, engine, train_cfg: dict | None = None):
+        self.engine = engine
         self.train_cfg = train_cfg or {}
-        self.model_cfg = model_cfg or {}
-        self.device = torch.device(self.train_cfg.get("device", "cuda") if torch.cuda.is_available() else "cpu")
+        self.device = self.engine.device
 
-        # lazy model load: actual weights loaded when fit() is called with model_dir
-        self.model = None
+        self.epochs = int(self.train_cfg.get("epochs", 1))
+
         self.optimizer = None
         self.scheduler = None
-        self.text_encoder = TextPromptEncoder(
-            self.model_cfg.get("text_encoding_model", "Qwen/Qwen3-Embedding-4B"),
-            device=self.device,
+        self._scheduler_per_iteration = False
+
+        # Set output dir and logging
+        self.out_root = Path(self.train_cfg.get("output_dir", "experiments/exp_debug"))
+        (self.out_root / "logs").mkdir(parents=True, exist_ok=True)
+        logger_name = f"{__name__}.{self.out_root.as_posix().replace('/', '_')}"
+        self.run_logger = get_logger(logger_name, log_file=self.out_root / "logs" / "run.log")
+
+        # Save Debug Artifacts
+        self.debug_save_artifacts = bool(self.train_cfg.get("debug_save_artifacts", False))
+        self.debug_save_interval = int(self.train_cfg.get("debug_save_interval", 1))
+        if self.debug_save_artifacts:
+            self.debug_dir = self.out_root / "debug_artifacts"
+            self.debug_dir.mkdir(parents=True, exist_ok=True)
+
+        self.best_val_loss = float("inf")
+        self.dice_metric = monai.metrics.DiceMetric(include_background=True, reduction="none", ignore_empty=False)
+
+    def _build_optimizer_and_scheduler(self, iters_per_epoch=None):
+        self.optimizer, self.scheduler, self._scheduler_per_iteration = build_optimizer_and_scheduler(
+            self.engine.model,
+            self.train_cfg.get("optimizer", {}),
+            max_epochs=self.epochs,
+            iters_per_epoch=iters_per_epoch,
         )
 
     def _save_debug_artifacts(self, batch, outputs, epoch: int, step: int, debug_dir: Path):
@@ -38,7 +58,7 @@ class Trainer:
 
         outputs = outputs.detach().cpu()
         images = batch["image"].detach().cpu()
-        masks = batch["mask"].detach().cpu()
+        masks = batch["masks"].detach().cpu()
 
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).to(torch.uint8)
@@ -53,201 +73,138 @@ class Trainer:
             "prompts": batch["prompts"],
         }, str(debug_path))
 
-    def _prepare_model(self, model_dir: str, max_epochs: int):
-        model, _ = load_voxtell_model(
-            model_dir,
-            deep_supervision=self.train_cfg.get("deep_supervision", False),
-            model_overrides=self.model_cfg,
+    def train_one_batch(self, batch_idx, batch_item, epoch):
+
+        img_paths = batch_item["img_path"]
+        prompts = batch_item["prompts"]
+        prompt_labels = prompts[0]
+        self.run_logger.info("    [DATA] img=%s prompts=%s", img_paths, ", ".join(prompt_labels))
+
+        outputs = self.engine.forward(batch_item)
+
+        masks = batch_item["masks"].to(self.device)
+        loss = deep_supervision_loss(outputs, masks, weights=self.engine.ds_weights)
+
+        probs = torch.sigmoid(outputs)
+        preds = (probs > 0.5).float()
+        dice = self.dice_metric(preds, masks)
+        dice = torch.nan_to_num(dice, nan=0.0)
+        dice_vals = dice.detach().cpu().view(-1).tolist()
+        batch_dice_mean = np.nanmean(dice_vals)
+        per_prompt_val = { p: d for p, d in zip(prompt_labels, dice_vals)}
+        per_prompt_str = ", ".join(
+            f"{p}: {d:.4f}"
+            for p, d in per_prompt_val.items()
         )
-        # Optionally reinitialize weights deterministically before optimizer setup
-        if self.train_cfg.get("reinit_weights", False):
-            try:
-                from src.model.voxtell_model import VoxTellModel
 
-                model.apply(VoxTellModel.initialize)
-            except Exception:
-                pass
+        self.optimizer.zero_grad()
 
-        self.model = model.to(self.device)
-        # Set to train mode early to enable batch statistics and dropout
-        self.model.train()
-        
-        deep_sup_enabled = self.train_cfg.get("deep_supervision", False)
-        logger.info(f"Loading model with deep_supervision={deep_sup_enabled}")
-        logger.info("Model set to training mode - BatchNorm will accumulate batch statistics")
-        
-        iters = getattr(self, "_iters_per_epoch", None)
-        opt_ret = build_optimizer_and_scheduler(
-            self.model,
-            self.train_cfg.get("optimizer", {}),
-            max_epochs=max_epochs,
-            iters_per_epoch=iters,
+        if self.debug_save_artifacts and batch_idx % self.debug_save_interval == 0:
+            self._save_debug_artifacts(batch_item, outputs, epoch, batch_idx, self.debug_dir)
+            
+        loss.backward()
+        self.optimizer.step()
+
+        # step scheduler per-iteration if configured
+        if getattr(self, "_scheduler_per_iteration", False) and self.scheduler is not None:
+            self.scheduler.step()
+
+        grad_norm = torch.nn.utils.clip_grad_norm_(
+            self.engine.model.parameters(),
+            max_norm=1e9
         )
-        if isinstance(opt_ret, tuple) and len(opt_ret) == 3:
-            self.optimizer, self.scheduler, self._scheduler_per_iteration = opt_ret
-        else:
-            self.optimizer, self.scheduler = opt_ret
-            self._scheduler_per_iteration = False
 
-    def fit(self, datamodule, model_dir: Optional[str] = None):
-        if model_dir is None:
-            model_dir = self.model_cfg.get("dir", None)
-        if model_dir is None:
-            raise ValueError("model_dir must be provided in model_cfg or as argument")
+        # Logging
+        current_lrs = [pg["lr"] for pg in self.optimizer.param_groups]
+        self.run_logger.info(
+            "    Loss: %.6f | LR(s): %s | Grad Norm (clipped): %.6f | Dice(mean): %.6f | Per-prompt: %s",
+            loss.item(),
+            current_lrs,
+            grad_norm,
+            batch_dice_mean,
+            per_prompt_str,
+        )
 
-        epochs = int(self.train_cfg.get("epochs", 1))
+        return loss
+
+    def fit(self, datamodule):
 
         # Determinism / seeding
         seed = int(self.train_cfg.get("seed", 42))
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
-        try:
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-        except Exception:
-            pass
-
-        # Optional stricter deterministic algorithms (may raise on unsupported ops)
-        if self.train_cfg.get("use_deterministic_algorithms", False):
-            try:
-                torch.use_deterministic_algorithms(True)
-            except Exception:
-                pass
+        seed_everything(
+            seed,
+            self.train_cfg.get("use_deterministic_algorithms", False)
+        )
 
         # build dataloaders first to compute iterations/epoch if needed
         train_loader = datamodule.train_dataloader()
         val_loader = datamodule.val_dataloader()
 
-        try:
-            self._iters_per_epoch = len(train_loader)
-        except Exception:
-            self._iters_per_epoch = None
+        self.run_logger.info(
+            "Training started | epochs=%d | device=%s | train_batches=%d | val_batches=%d",
+            self.epochs,
+            self.device,
+            len(train_loader),
+            len(val_loader)
+        )
 
-        self._prepare_model(model_dir, max_epochs=epochs)
+        # Prepare model, optimizer and scheduler
+        self._build_optimizer_and_scheduler(iters_per_epoch=len(train_loader))
+        
+        # Log optimizer and model info
+        optimizer_state = self.optimizer.state_dict()
+        self.run_logger.info("Optimizer: %s | LR: %s", 
+                            optimizer_state.get('param_groups', [{}])[0].get('name', 'unknown'),
+                            [pg['lr'] for pg in self.optimizer.param_groups])
 
-        out_root = Path(self.train_cfg.get("output_dir", "experiments/exp_debug"))
-        (out_root / "logs").mkdir(parents=True, exist_ok=True)
-        run_logger = get_logger(__name__, log_file=out_root / "logs" / "run.log")
-        ds_weights = self.train_cfg.get("deep_supervision_weights", [1, 0.5, 0.25, 0.125, 0.0625])
-        debug_save_artifacts = bool(self.train_cfg.get("debug_save_artifacts", False))
-        debug_save_interval = int(self.train_cfg.get("debug_save_interval", 1))
-        if debug_save_artifacts:
-            debug_dir = out_root / "debug_artifacts"
-            debug_dir.mkdir(parents=True, exist_ok=True)
+        for epoch in range(self.epochs):
+            self.run_logger.info(f"[EPOCH {epoch}/{self.epochs}]")
+            self.engine.model.train()
+            total_training_loss = 0.0
+            for batch_idx, batch in enumerate(train_loader):
+                self.run_logger.info(f"  [BATCH {batch_idx}]")
+                loss = self.train_one_batch(batch_idx, batch, epoch)
+                total_training_loss += float(loss.item())
 
-        for epoch in range(epochs):
-            self.model.train()
-            running_loss = 0.0
-            for i, batch in enumerate(train_loader):
-                imgs = batch["image"].to(self.device)
-                masks = batch["mask"].to(self.device)
-                prompts = batch["prompts"]
-
-                # prompts is expected to be a list-of-lists: [[p1,p2,p3], [p1,p2,p3], ...]
-                text_embeddings = self.text_encoder.embed(prompts).clone()
-
-                self.optimizer.zero_grad()
-                outputs = self.model(imgs, text_embeddings)
-
-                if debug_save_artifacts and i % debug_save_interval == 0:
-                    self._save_debug_artifacts(batch, outputs, epoch, i, debug_dir)
-
-                if epoch == 0 and i == 0:
-                    run_logger.info(
-                        f"""
-                    ======== FIRST BATCH DEBUG ========
-                    Images: shape={tuple(imgs.shape)} dtype={imgs.dtype}
-                    Masks: shape={tuple(masks.shape)} unique={torch.unique(masks).cpu().tolist()}
-                    Prompts: {prompts}
-                    Text embeddings: shape={tuple(text_embeddings.shape)} dtype={text_embeddings.dtype}
-                    Text embeddings range: min={text_embeddings.min():.4f} max={text_embeddings.max():.4f}
-
-                    Outputs:
-                    {[tuple(o.shape) for o in outputs] if isinstance(outputs, (list, tuple)) else tuple(outputs.shape)}
-
-                    Image stats:
-                    min={imgs.min():.4f} max={imgs.max():.4f}
-                    mean={imgs.mean():.4f} std={imgs.std():.4f}
-                    
-                    Model training mode: {self.model.training}
-                    ===================================
-                    """
-                        )
-                    
-                    if isinstance(outputs, (list, tuple)):
-                        o = outputs[0]
-                    else:
-                        o = outputs
-
-                    print("LOGITS:")
-                    print(o.min().item(), o.max().item(), o.mean().item())
-                    print("LOGITS per prompt:")
-                    for idx in range(o.shape[1]):
-                        logits = o[0, idx]
-                        print(f"  Prompt {idx}: min={logits.min():.2f} max={logits.max():.2f} mean={logits.mean():.2f}")
-
-                    probs = torch.sigmoid(o)
-                    print("PROBS:")
-                    print(probs.min().item(), probs.max().item(), probs.mean().item())
-                    
-                # At a patch level -
-                # outputs will have length equal to 5, if deep supervision is enabled, otherwise 1 (e.g. - (5, 1, 3, 192, 192, 192))
-                # For each sample of the batch, there will be 3 masks, 2 for positive and 1 for negative (e.g. - (1, 3, 192, 192, 192))
-
-                loss = deep_supervision_loss(outputs, masks, weights=ds_weights)
-                loss.backward()
-                self.optimizer.step()
-
-                # step scheduler per-iteration if configured
-                if getattr(self, "_scheduler_per_iteration", False) and self.scheduler is not None:
-                    self.scheduler.step()
-
-                running_loss += float(loss.item())
-
-                if i % 50 == 0:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(),
-                        max_norm=1e9
-                    )
-
-                    run_logger.info(
-                        "Gradient norm: %.4f",
-                        grad_norm
-                    )
+            train_loss = total_training_loss / len(train_loader)
 
             # step scheduler per-epoch if configured that way
             if getattr(self, "_scheduler_per_iteration", False) is False and self.scheduler is not None:
                 self.scheduler.step()
 
-            run_logger.info(
-                "Epoch %d/%d completed | running_loss=%.4f",
-                epoch + 1,
-                epochs,
-                running_loss,
-            )
-
-            # simple checkpoint per 10 epoch into experiment checkpoints
-            if (epoch + 1) % 10 == 0:
-                checkpoints_dir = out_root / "checkpoints"
-                checkpoints_dir.mkdir(parents=True, exist_ok=True)
-                ckpt_path = checkpoints_dir / f"checkpoint_epoch_{epoch}.pt"
-                save_checkpoint(self.model, self.optimizer, ckpt_path)
-
-
             # run light validation
-            self.model.eval()
-            val_loss = 0.0
+            self.engine.model.eval()
+            total_val_loss = 0.0
             with torch.no_grad():
                 for batch in val_loader:
-                    imgs = batch["image"].to(self.device)
-                    masks = batch["mask"].to(self.device)
-                    prompts = batch["prompts"]
-                    text_embeddings = self.text_encoder.embed(prompts)
-                    preds = self.model(imgs, text_embeddings)
-                    val_loss += float(deep_supervision_loss(preds, masks, weights=ds_weights).item())
-            run_logger.info("Validation loss: %.4f", val_loss)
+                    masks = batch["masks"].to(self.device)
+                    outputs = self.engine.forward(batch)
+                    loss = deep_supervision_loss(outputs, masks, weights=self.engine.ds_weights)
+                    total_val_loss += float(loss.item())
 
+            val_loss = total_val_loss / len(val_loader)
+            self.run_logger.info(
+                "Epoch %d/%d completed | Training Loss=%.4f, | Validation Loss=%.4f",
+                epoch + 1, self.epochs, train_loss, val_loss
+            )
+
+            # Experiment Checkpoints
+            checkpoints_dir = self.out_root / "checkpoints"
+            checkpoints_dir.mkdir(parents=True, exist_ok=True)
+            if val_loss < self.best_val_loss:
+                self.best_val_loss = val_loss
+                best_path = checkpoints_dir / f"best_model_epoch_{epoch}.pt"
+                save_checkpoint(self.engine.model, self.optimizer, best_path)
+                self.run_logger.info("New best model saved (val_loss=%.6f) at epoch=%d", val_loss, epoch)        
+            elif (epoch + 1) % 10 == 0:
+                ckpt_path = checkpoints_dir / f"checkpoint_epoch_{epoch}.pt"
+                save_checkpoint(self.engine.model, self.optimizer, ckpt_path)
+                self.run_logger.info("Checkpoint saved at epoch=%d", epoch)
+        
+
+        final_ckpt_path = checkpoints_dir / "final_checkpoint.pt"
+        save_checkpoint(self.engine.model, self.optimizer, final_ckpt_path)
+        self.run_logger.info("Training completed successfully | Best validation loss: %.6f", self.best_val_loss)
 
 
 if __name__ == '__main__':

@@ -16,16 +16,20 @@ class AeroPathAdapter(DatasetAdapter):
     def build_case(self, case_dir: Path) -> EvaluationCase | None:
         if not case_dir.is_dir():
             return None
-        case_id = case_dir.name
-        image_path = case_dir / f"{case_id}_CT_HR.nii.gz"
-        airway_path = case_dir / f"{case_id}_CT_HR_label_airways.nii.gz"
-        lungs_path = case_dir / f"{case_id}_CT_HR_label_lungs.nii.gz"
+        image_path = case_dir / f"{case_dir.name}_CT_HR.nii.gz"
+        airway_path = case_dir / f"{case_dir.name}_CT_HR_label_airways.nii.gz"
+        lungs_path = case_dir / f"{case_dir.name}_CT_HR_label_lungs.nii.gz"
+
+
+        invalid_prompts = [
+            "brain", "retina","kidney", "banana", "xyz"
+        ]
 
         return EvaluationCase(
-            case_id=case_id,
             image_path=image_path,
             target_paths={
                 "trachea": airway_path,
                 "lung": lungs_path,
+                # **{prompt: None for prompt in invalid_prompts}
             },
         )

@@ -12,7 +12,3 @@ def save_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Optimizer, pa
         "optimizer_state": optimizer.state_dict(),
     }, str(path))
 
-
-def load_checkpoint(path: Path):
-    data = torch.load(str(path), map_location=torch.device('cpu'))
-    return data

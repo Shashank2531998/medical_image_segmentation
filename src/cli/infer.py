@@ -19,7 +19,6 @@ logger = get_logger(__name__)
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--input", required=True)
-    p.add_argument("--output", required=True)
     p.add_argument("--model", required=True)
     p.add_argument("--prompts", nargs="+", required=True)
     p.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
@@ -35,8 +34,8 @@ def main():
     predictor = get_predictor(args.model, device)
 
     # create experiment folder and store predictions there
-    dirs = make_experiment_dir("experiments")
-    predictions_out = dirs["predictions"]
+    dirs = make_experiment_dir("experiments/inference", subdirs=[])
+    predictions_out = dirs["root"]
 
     segmentations = predict_image(
         predictor,

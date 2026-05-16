@@ -10,7 +10,6 @@ from src.data.dataset import TrainingSample
 
 @dataclass(frozen=True)
 class EvaluationCase:
-    case_id: str
     image_path: Path
     target_paths: dict[str, Path] | None = None
     metadata: dict[str, str] | None = None
@@ -35,9 +34,6 @@ class DatasetAdapter(ABC):
     def validate_case(self, case: EvaluationCase) -> bool:
         if not case.image_path.exists():
             return False
-        for _, target_path in (case.target_paths or {}).items():
-            if not target_path.exists():
-                return False
         return True
 
     def cases(self) -> Sequence[EvaluationCase]:
@@ -51,45 +47,46 @@ class DatasetAdapter(ABC):
             cases.append(case)
         return cases
 
-    def prompt_aliases(self) -> dict[str, list[str]]:
-        return {}
-
-    def prompt_variants(self, label_name: str) -> list[str]:
-        normalized = label_name.replace("_", " ").strip().lower()
-        aliases = self.prompt_aliases()
-        return aliases.get(normalized, [normalized])
-
-    def default_prompts(self) -> list[str]:
-        prompts: list[str] = []
-        for case in self.cases():
-            for label_name in (case.target_paths or {}).keys():
-                for prompt in self.prompt_variants(label_name):
-                    if prompt not in prompts:
-                        prompts.append(prompt)
-        return prompts
-
-    def build_training_samples(self, cases: Sequence[EvaluationCase] | None = None) -> list[TrainingSample]:
+    def build_training_samples(
+        self,
+        cases: Sequence[EvaluationCase] | None = None,
+        max_cases: int | None = None,
+        filter_img_list: Sequence[str] | None = None,
+    ) -> list[TrainingSample]:
         cases = list(self.cases() if cases is None else cases)
-        all_label_names = sorted({label_name for case in cases for label_name in (case.target_paths or {}).keys()})
+
+        # normalize filter list
+        filter_img_set = set(filter_img_list or [])
+
+        # filter by image path if provided
+        if filter_img_set:
+            cases = [
+                case
+                for case in cases
+                if str(case.image_path) in filter_img_set
+            ]
+
+        # limit number of cases if requested
+        if max_cases is not None:
+            cases = cases[:max_cases]
 
         samples: list[TrainingSample] = []
-        for case in cases:
-            for label_name, mask_path in (case.target_paths or {}).items():
-                positives = self.prompt_variants(label_name)
-                negatives: list[str] = []
-                for other_label in all_label_names:
-                    if other_label == label_name:
-                        continue
-                    negatives.extend(self.prompt_variants(other_label))
 
-                samples.append(
-                    TrainingSample(
-                        image_path=case.image_path,
-                        mask_path=mask_path,
-                        prompts=positives,
-                        negatives=negatives,
-                    )
+        for case in cases:
+
+            prompts = []
+            mask_paths = []
+            for label_name, mask_path in (case.target_paths or {}).items():
+                prompts.append(label_name)
+                mask_paths.append(mask_path)
+
+            samples.append(
+                TrainingSample(
+                    image_path=case.image_path,
+                    mask_paths=mask_paths,
+                    prompts=prompts,
                 )
+            )
 
         return samples
 

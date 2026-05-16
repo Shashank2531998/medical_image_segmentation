@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -12,10 +12,9 @@ from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
 
 from src.data.preprocess import preprocess_image
 from src.data.utils import (
-    build_prompt_mask_stack,
     crop_mask_to_bbox,
-    extract_random_patch,
-    sample_prompt_triplet,
+    extract_random_image_patch,
+    extract_mask_patch
 )
 
 
@@ -23,8 +22,7 @@ from src.data.utils import (
 class TrainingSample:
     image_path: Path
     prompts: Optional[List[str]] = None
-    negatives: Optional[List[str]] = None
-    mask_path: Path | None = None
+    mask_paths: list[Path | None] = field(default_factory=list)
 
 
 class VoxTellDataset(Dataset):
@@ -36,10 +34,12 @@ class VoxTellDataset(Dataset):
     - text prompt string for embedding
     """
 
-    def __init__(self, samples: List[TrainingSample], patch_size: Tuple[int, int, int] = (192, 192, 192)):
+    def __init__(self, samples: List[TrainingSample], mode: str = "train", patch_size: Tuple[int, int, int] = (192, 192, 192), seed=None):
         self.samples = samples
         self.reader = NibabelIOWithReorient()
         self.patch_size = patch_size
+        self.mode = mode
+        self.seed = seed
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -47,42 +47,31 @@ class VoxTellDataset(Dataset):
     def __getitem__(self, idx: int):
         sample = self.samples[idx]
         img, _ = self.reader.read_images([str(sample.image_path)])
-        print(f"Image Path: {str(sample.image_path)}")
-        print(f"Original Image Shape: {img.shape}")
         img_tensor, bbox, _ = preprocess_image(img)
-        if sample.mask_path is not None:
-            mask_arr, _ = self.reader.read_images([str(sample.mask_path)])
-            print(f"Original Mask shape: {mask_arr.shape}")
-            mask = mask_arr[0].astype(np.uint8)
-            mask = crop_mask_to_bbox(mask, bbox)
-        else:
-            mask = np.zeros_like(img_tensor[0].numpy(), dtype=np.uint8)
+        prompts = sample.prompts
 
-        mask_tensor = torch.from_numpy(mask)
+        if self.mode == "train":
+            img_tensor, patch_center = extract_random_image_patch(img_tensor, self.patch_size, self.seed)
 
-        prompts_out, prompt_is_positive = sample_prompt_triplet(sample.prompts, sample.negatives)
-        print(f"Sample Negatives - {sample.negatives}")
-        img_patch, mask_patch, (z0, y0, x0) = extract_random_patch(img_tensor, mask_tensor, self.patch_size)
-        mask_patches = build_prompt_mask_stack(mask_patch, prompt_is_positive)
+        masks = []
+        for mask_path in sample.mask_paths:
+            
+            if mask_path is None:
+                mask = torch.zeros_like(img_tensor[0])
+            else:
+                mask_arr, _ = self.reader.read_images([str(mask_path)])
+                mask = mask_arr[0].astype(np.uint8)
+                mask = torch.from_numpy(crop_mask_to_bbox(mask, bbox))
+                if self.mode == "train":
+                    mask = extract_mask_patch(mask, self.patch_size, patch_center)
 
-        print("===== DATASET DEBUG =====")
-        print("Num samples:", len(self.samples))
-        print("Patch size:", self.patch_size)
+            masks.append(mask)
 
-        print("Image tensor shape:", img_tensor.shape)
-        print("Mask shape:", mask.shape)
-
-        print("Mask unique values:", np.unique(mask))
-
-        print("Prompts example:", prompts_out)
-
-        print("Patch crop origin:", (z0, y0, x0))
-        print("Patch shape image:", img_patch.shape)
-        print("Patch shape mask:", mask_patch.shape)
+        mask_tensor_list = torch.stack(masks)
 
         return {
-            "image": img_patch,
-            # list of masks aligned with `prompts` (positive, positive, negative)
-            "mask": mask_patches,
-            "prompts": prompts_out,
+            "image": img_tensor,
+            "masks": mask_tensor_list,
+            "prompts": prompts,
+            "img_path": str(sample.image_path)
         }

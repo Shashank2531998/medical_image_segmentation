@@ -12,6 +12,8 @@ Experiment layout
 Quick CLI
 
 - Train: python src/cli/train.py --config configs/experiments/train_debug.yaml
+- Continual baseline: python src/cli/continual.py --config configs/continual/naive_sequential_finetuning.yaml
+- Continual LoRA: python src/cli/continual.py --config configs/continual/lora_sequential_finetuning.yaml
 - Evaluate: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml --split evaluation
 - Validate: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml --split validation
 - Test: python src/cli/evaluate.py --config configs/experiments/aeropath_eval.yaml --split testing

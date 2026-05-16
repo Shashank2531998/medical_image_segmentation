@@ -1,26 +1,11 @@
-"""Continual learning module for VoxTell.
-
-Provides strategy-based adaptation mechanisms that integrate with the existing
-trainer/datamodule/builder stack without forking separate training logic.
-"""
-
-from src.continual.strategies import (
-    ContinualStrategy,
-    FinetuneStrategy,
-    FreezeStrategy,
-    ReplayStrategy,
-    AdapterStrategy,
-    create_strategy,
-)
-from src.continual.task_manager import TaskManager, ContinualTask
+from src.continual.task_manager import ContinualTask, ContinualTaskManager, merge_dicts
+from src.continual.loralib_lora import apply_loralib_lora, save_lora_adapter, load_lora_adapter
 
 __all__ = [
-    "ContinualStrategy",
-    "FinetuneStrategy",
-    "FreezeStrategy",
-    "ReplayStrategy",
-    "AdapterStrategy",
-    "create_strategy",
-    "TaskManager",
-    "ContinualTask",
+	"ContinualTask",
+	"ContinualTaskManager",
+	"merge_dicts",
+	"apply_loralib_lora",
+	"save_lora_adapter",
+	"load_lora_adapter",
 ]

@@ -2,12 +2,14 @@ from pathlib import Path
 
 from src.data.adapters.aeropath import AeroPathAdapter
 from src.data.adapters.veela import VEELATrainAdapter
+from src.data.adapters.fedbca import FedBCaCenter2Adapter
 from src.data.adapters.base import DatasetAdapter, EvaluationCase
 
 
 DATASET_ADAPTERS: dict[str, type[DatasetAdapter]] = {
 	"aeropath": AeroPathAdapter,
 	"veela": VEELATrainAdapter,
+	"fedbca_center2": FedBCaCenter2Adapter,
 }
 
 

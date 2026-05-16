@@ -1,0 +1,13 @@
+dataset:
+  name: aeropath
+  test_root: ./data/AeroPath/
+  seed: 42
+  batch_size: 1
+
+model:
+  dir: ./models/voxtell_v1.1
+  device: cuda
+  deep_supervision: false
+
+evaluation:
+  output_dir: ./experiments/evaluations/aeropath

@@ -23,6 +23,8 @@ def load_voxtell_model(
     model_dir: str | Path,
     deep_supervision: bool = False,
     model_overrides: dict | None = None,
+    reinit_weights: bool = False,
+    checkpoint_path: str | Path = None
 ) -> tuple[VoxTellModel, Tuple[int, ...]]:
     model_dir = Path(model_dir)
     model_overrides = model_overrides or {}
@@ -49,7 +51,7 @@ def load_voxtell_model(
     )
 
     checkpoint = torch.load(
-        str(model_dir / "fold_0" / "checkpoint_final.pth"),
+        checkpoint_path if checkpoint_path else str(model_dir / "fold_0" / "checkpoint_final.pth"),
         map_location=torch.device("cpu"),
         weights_only=False,
     )
@@ -59,5 +61,7 @@ def load_voxtell_model(
     else:
         network.load_state_dict(checkpoint["network_weights"])
 
-    network.eval()
+    if reinit_weights:
+        network.apply(VoxTellModel.initialize)
+    
     return network, patch_size

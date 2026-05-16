@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 from typing import List, Tuple
 
+import monai
+
 
 def _stack_target_if_list(target):
     # support a list of per-prompt masks (for a single sample)
@@ -69,19 +71,23 @@ def bce_loss_logits(pred_logits: torch.Tensor, target) -> torch.Tensor:
     return loss.mean()
 
 
+def dice_coefficient(pred: torch.Tensor,
+                     target: torch.Tensor) -> torch.Tensor:
+    """
+    Computes Dice coefficient between prediction and target.
+    """
+    if pred.ndim != target.ndim or pred.ndim != 4:
+        raise ValueError(f"pred ndim must be 4 (B, H, W, D), got {pred.ndim}")
+    return monai.metrics.compute_meandice(pred, target)
+
+
 def dice_loss_logits(pred_logits: torch.Tensor, target, eps: float = 1e-6) -> torch.Tensor:
-    pred = torch.sigmoid(pred_logits).float()
-    target = _align_and_resize_target(pred, target)
-
-    if pred.ndim == 5:
-        reduce_dims = tuple(range(2, pred.ndim))
-    else:
-        reduce_dims = tuple(range(1, pred.ndim))
-
-    intersection = torch.sum(pred * target, dim=reduce_dims)
-    denominator = torch.sum(pred, dim=reduce_dims) + torch.sum(target, dim=reduce_dims)
-    dice = (2.0 * intersection + eps) / (denominator + eps)
-    return (1.0 - dice).mean()
+    target = _align_and_resize_target(pred_logits, target)
+    if pred_logits.ndim != target.ndim or pred_logits.ndim != 5:
+        raise ValueError(f"pred ndim must be 5 (B, N, H, W, D), got {pred_logits.ndim}")
+    return monai.losses.DiceLoss(include_background=True, sigmoid=True, reduction="mean")(
+        pred_logits.float(), target.float()
+    )
 
 
 def combined_seg_loss_logits(

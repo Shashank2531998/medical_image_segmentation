@@ -4,32 +4,32 @@ from datetime import datetime
 from pathlib import Path
 import secrets
 from typing import Dict
+from typing import List
 
 
-def make_experiment_dir(root: str | Path = "experiments", name: str | None = None) -> Dict[str, Path]:
+def make_experiment_dir(
+    root: str | Path = "experiments", 
+    name: str | None = None, 
+    subdirs: List[str] = ["checkpoints", "logs"]
+) -> Dict[str, Path]:
+    
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
 
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     rand = secrets.token_hex(4)
     exp_name = name or f"exp_{ts}_{rand}"
     exp_dir = root / exp_name
     exp_dir.mkdir(parents=True, exist_ok=False)
 
-    checkpoints = exp_dir / "checkpoints"
-    logs = exp_dir / "logs"
-    predictions = exp_dir / "predictions"
+    paths: dict[str, Path] = {"root": exp_dir}
 
-    checkpoints.mkdir()
-    logs.mkdir()
-    predictions.mkdir()
+    for subdir in subdirs:
+        path = exp_dir / subdir
+        path.mkdir(parents=True, exist_ok=True)
+        paths[subdir] = path
 
-    return {
-        "root": exp_dir,
-        "checkpoints": checkpoints,
-        "logs": logs,
-        "predictions": predictions,
-    }
+    return paths
 
 
 def write_metrics(metrics: dict, exp_dir: Path, name: str = "metrics.json") -> Path:

@@ -6,33 +6,42 @@ from src.data.adapters.base import DatasetAdapter, EvaluationCase
 
 
 class VEELATrainAdapter(DatasetAdapter):
+    """Adapter for VEELA (Variability in Estimating Liver and tumor Area) dataset.
+    
+    Dataset structure:
+    - dataset_root/
+        - setXX_norm.nii      (normalized image)
+        - setXX_gt.nii        (ground truth segmentation - liver)
+        - setXX_mask.nii      (optional mask/ROI)
+    """
+
     @property
     def name(self) -> str:
         return "veela"
 
-    def case_entries(self):
-        # VEELA train set is flat files like set01_norm.nii, set01_gt.nii, set01_mask.nii
-        return sorted(self.dataset_root.glob("*_norm.nii*"))
+    def case_entries(self) -> list[str]:
+        """Extract unique case identifiers from available files."""
+        cases = set()
+        for file_path in self.dataset_root.iterdir():
+            if file_path.is_file() and file_path.suffix == ".nii":
+                # Extract case ID (e.g., "set01" from "set01_norm.nii")
+                parts = file_path.stem.split("_")
+                if len(parts) >= 1 and parts[0].startswith("set"):
+                    cases.add(parts[0])
+        return sorted(list(cases))
 
-    def build_case(self, norm_file: Path) -> EvaluationCase | None:
-        name = norm_file.name
-        if "_norm" not in name:
+    def build_case(self, case_id: str) -> EvaluationCase | None:
+        """Build evaluation case for a given case ID."""
+        image_path = self.dataset_root / f"{case_id}_norm.nii"
+        gt_path = self.dataset_root / f"{case_id}_gt.nii"
+
+        # Both image and ground truth must exist
+        if not image_path.exists() or not gt_path.exists():
             return None
 
-        case_id = name.split("_norm")[0]
-        gt_name = name.replace("_norm", "_gt")
-        mask_name = name.replace("_norm", "_mask")
-
-        gt_path = norm_file.with_name(gt_name)
-        roi_mask_path = norm_file.with_name(mask_name)
-
         return EvaluationCase(
-            case_id=case_id,
-            image_path=norm_file,
+            image_path=image_path,
             target_paths={
                 "liver": gt_path,
-            },
-            metadata={
-                "roi_mask": str(roi_mask_path),
             },
         )

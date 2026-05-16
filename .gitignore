@@ -96,6 +96,8 @@ ENV/
 # Medical Imaging & Data Files
 # ==============================================================================
 
+data/
+
 # NIfTI files
 *.nii
 *.nii.gz
@@ -122,6 +124,28 @@ ENV/
 # Pickle files
 *.pkl
 *.pickle
+
+# ==============================================================================
+# ML Experiment Tracking & Logging
+# ==============================================================================
+
+# Weights & Biases
+.wandb/
+wandb/
+
+# TensorBoard
+runs/
+lightning_logs/
+.tensorboard/
+
+# ==============================================================================
+# Cluster Job Files (SLURM)
+# ==============================================================================
+
+# SLURM output and error files
+*.out
+*.err
+*.slurm
 
 # ==============================================================================
 # Documentation
@@ -161,3 +185,19 @@ docs/_templates/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# ==============================================================================
+# Generated Data & Large Files
+# ==============================================================================
+
+# Experiment outputs (uncomment to ignore local outputs entirely)
+outputs/*
+experiments/*
+
+# Keep directories but ignore common generated files within them
+# outputs/**/*.pkl
+# outputs/**/*.json
+# experiments/**/*.pkl
+# experiments/**/*.json
+# experiments/**/*.npy
+# experiments/**/*.npz

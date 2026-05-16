@@ -7,9 +7,8 @@ import os
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["HF_HUB_OFFLINE"] = "1"
 
-from src.engine.model_engine import VoxTellEngine
-from src.training.trainer import Trainer
-from src.data.datamodule import VoxTellDataModule
+from src.evaluation.test import Evaluator
+from src.data.datamodule import VoxTellTestDataModule
 from src.utils.config import load_config
 from src.utils.io import make_experiment_dir
 from src.utils.logging import get_logger
@@ -30,12 +29,12 @@ def main():
     cfg = load_config(Path(args.config))
 
     data_cfg = cfg.get("dataset", {})
-    train_cfg = cfg.get("training", {})
+    train_cfg = cfg.get("evaluation", {})
     model_cfg = cfg.get("model", {})
 
     # create experiment folder and snapshot config
     out_root = train_cfg.get("output_dir", "experiments")
-    dirs = make_experiment_dir(out_root)
+    dirs = make_experiment_dir(out_root, subdirs=["logs"])
     # save resolved config
     from src.utils.config import save_config_snapshot
     save_config_snapshot(cfg, dirs["root"])
@@ -44,11 +43,10 @@ def main():
     # make trainer write artifacts into this experiment root
     train_cfg["output_dir"] = str(dirs["root"])
 
-    datamodule = VoxTellDataModule(data_cfg)
-    model_engine = VoxTellEngine(model_cfg)
-    trainer = Trainer(model_engine, train_cfg)
+    datamodule = VoxTellTestDataModule(data_cfg)
+    evaluator = Evaluator(model_cfg, train_cfg)
 
-    trainer.fit(datamodule)
+    evaluator.evaluate(datamodule)
 
 
 if __name__ == '__main__':

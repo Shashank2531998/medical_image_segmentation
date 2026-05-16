@@ -1,0 +1,42 @@
+dataset:
+  batch_size: 1
+  patch_size: [192, 192, 192]
+  val_fraction: 0.2
+  seed: 42
+  train_max_cases: 2
+  val_max_cases: 2
+  val_fraction: 0.2
+
+model:
+  dir: ./models/voxtell_v1.1
+  device: cuda
+  deep_supervision: false
+  reinit_weights: false
+
+training:
+  epochs: 2
+  seed: 42
+  use_deterministic_algorithms: false
+  optimizer:
+    lr: 0.0001
+    weight_decay: 0.00003
+    momentum: 0.99
+    poly_power: 1.0
+    nesterov: true
+
+continual:
+  baseline: naive_sequential_finetuning
+  run_name: naive_sequential_finetuning
+  output_dir: ./experiments/continual/full_fine_tuning
+  from_scratch: false
+  reset_optimizer_each_task: true
+  tasks:
+    - name: aeropath
+      dataset:
+        name: aeropath
+        train_root: ./data/AeroPath/
+
+    - name: fedbca_center2
+      dataset:
+        name: fedbca_center2
+        train_root: ./data/FedBCa/Center2/

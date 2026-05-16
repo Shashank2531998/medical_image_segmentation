@@ -10,7 +10,6 @@ from nnunetv2.imageio.nibabel_reader_writer import NibabelIOWithReorient
 from nnunetv2.utilities.helpers import dummy_context
 
 from src.data.preprocess import preprocess_image
-from src.data.utils import extract_random_image_patch
 from src.inference.postprocessing import logits_to_segmentation
 from src.inference.sliding_window import SlidingWindowInferer
 from src.model.builder import load_voxtell_model
@@ -41,7 +40,7 @@ class VoxTellPredictor:
         max_text_length: Maximum text prompt length in tokens.
     """
     def __init__(self, model_dir: str, device: torch.device = torch.device('cuda'),
-                 text_encoding_model: str = 'Qwen/Qwen3-Embedding-4B') -> None:
+                 text_encoding_model: str = 'Qwen/Qwen3-Embedding-4B', checkpoint_path: str | Path = None) -> None:
         """
         Initialize the VoxTell predictor.
         
@@ -65,7 +64,11 @@ class VoxTellPredictor:
 
         self.text_encoder = TextPromptEncoder(text_encoding_model, device=self.device)
 
-        self.network, self.patch_size = load_voxtell_model(model_dir)
+        self.network, self.patch_size = load_voxtell_model(model_dir, checkpoint_path=checkpoint_path)
+        
+        # Setting it to eval mode
+        self.network.eval()
+        
         self.network = self.network.to(device)
         self.sliding_window = SlidingWindowInferer(
             self.network,
@@ -179,36 +182,6 @@ class VoxTellPredictor:
 
         return logits_to_segmentation(prediction, bbox, orig_shape)
 
-    def predict_single_image_on_random_patch(
-        self,
-        data: np.ndarray,
-        text_prompts: Union[str, List[str]],
-        seed: int = 42,
-    ) -> np.ndarray:
-        """
-        Predict segmentation masks on a random patch extracted after preprocessing.
-
-        This follows the same pipeline as predict_single_image, but crops a random
-        patch from the preprocessed image before embedding prompts and running inference.
-
-        Args:
-            data: Image data in RAS orientation (3D or 4D with channel dimension).
-            text_prompts: Single text prompt or list of text prompts.
-            seed: Seed for deterministic random patch sampling.
-
-        Returns:
-            Segmentation masks for the sampled patch as a numpy array.
-        """
-        data, _, _ = self.preprocess(data)
-        random_patch, _ = extract_random_image_patch(data, self.patch_size, seed=seed)
-
-        embeddings = self.embed_text_prompts(text_prompts)
-        prediction = self.network(random_patch.unsqueeze(0).to(self.device), embeddings.to(self.device))
-
-        patch_shape = tuple(random_patch.shape[1:])
-        patch_bbox = tuple(slice(0, size) for size in patch_shape)
-        return logits_to_segmentation(prediction, patch_bbox, patch_shape)
-
 
 def get_reader_writer(file_path: str):
     suffix = Path(file_path).suffix.lower()
@@ -294,7 +267,7 @@ def predict_image(
         logger.info("Prompts: %s", prompts)
         logger.info("Running prediction...")
 
-    segmentations = predictor.predict_single_image_on_random_patch(img, prompts)
+    segmentations = predictor.predict_single_image(img, prompts)
     segmentations = [
         reorient_seg_from_props(seg, props)
         for seg in segmentations
@@ -306,18 +279,16 @@ def predict_image(
     return segmentations
 
 
-def get_predictor(model_path, device):
+def get_predictor(model_path, device, checkpoint_path=None):
     model_path = Path(model_path)
 
     if not (model_path / "plans.json").exists():
         raise FileNotFoundError("plans.json missing")
-
-    if not (model_path / "fold_0" / "checkpoint_final.pth").exists():
-        raise FileNotFoundError("checkpoint missing")
 
     logger.info("Loading model from %s", model_path)
 
     return VoxTellPredictor(
         model_dir=str(model_path),
         device=device,
+        checkpoint_path=checkpoint_path
     )

@@ -9,6 +9,11 @@ from batchgenerators.utilities.file_and_folder_operations import join, load_json
 from torch._dynamo import OptimizedModule
 
 from src.model.voxtell_model import VoxTellModel
+from src.continual.loralib_lora import apply_loralib_lora, load_lora_adapter
+
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _resolve_arch_kwargs(arch_kwargs: dict, required_import_keys: list[str]) -> dict:
@@ -24,8 +29,13 @@ def load_voxtell_model(
     deep_supervision: bool = False,
     model_overrides: dict | None = None,
     reinit_weights: bool = False,
-    checkpoint_path: str | Path = None
+    checkpoint_path: str | Path = None,
+    lora_cfg: dict | None = None,
+    lora_adapter_path: str | Path | None = None,
 ) -> tuple[VoxTellModel, Tuple[int, ...]]:
+    
+    logger.info("Loading VoxTell model from %s", checkpoint_path if checkpoint_path else model_dir)
+
     model_dir = Path(model_dir)
     model_overrides = model_overrides or {}
     plans = load_json(str(model_dir / "plans.json"))
@@ -57,9 +67,39 @@ def load_voxtell_model(
     )
 
     if isinstance(network, OptimizedModule):
-        network._orig_mod.load_state_dict(checkpoint["network_weights"])
+        target_network = network._orig_mod
     else:
-        network.load_state_dict(checkpoint["network_weights"])
+        target_network = network
+
+    target_network.load_state_dict(checkpoint["network_weights"])
+
+    if lora_cfg is not None:
+        target_network = apply_loralib_lora(
+            target_network,
+            lora_cfg,
+            mark_trainable=lora_adapter_path is None,
+        )
+        if lora_adapter_path is not None:
+            load_lora_adapter(
+                target_network,
+                lora_adapter_path,
+                bias=str(lora_cfg.get("bias", "none")),
+                mark_trainable=False,
+            )
+
+            # Make the complete model trainable (default)
+            for p in target_network.parameters():
+                p.requires_grad = True
+
+
+    total_params = sum(p.numel() for p in target_network.parameters())
+    trainable_params = sum(p.numel() for p in target_network.parameters() if p.requires_grad)
+    logger.info(
+        "Model parameters - Total: %d | Trainable: %d | Frozen: %d",
+        total_params,
+        trainable_params,
+        total_params - trainable_params,
+    )
 
     if reinit_weights:
         network.apply(VoxTellModel.initialize)

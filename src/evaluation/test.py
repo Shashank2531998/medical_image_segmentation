@@ -19,7 +19,7 @@ class Evaluator:
         self.model_cfg = model_cfg or {}
 
         self.device = self.device = torch.device(self.model_cfg.get("device", "cuda") if torch.cuda.is_available() else "cpu")
-        self.ds_weights = self.eval_cfg.get(
+        self.ds_weights = self.model_cfg.get(
             "deep_supervision_weights",
             [1, 0.5, 0.25, 0.125, 0.0625],
         )
@@ -36,9 +36,17 @@ class Evaluator:
 
         model_dir = self.model_cfg.get("dir", None)
         checkpoint_path = self.model_cfg.get("checkpoint_path", None)
+        lora_cfg = self.model_cfg.get("lora_cfg", None)
+        lora_adapter_path = self.model_cfg.get("lora_adapter_path", None)
         if model_dir is None:
             raise ValueError("model_dir must be provided in model_cfg or as argument")
-        self.predictor = get_predictor(model_dir, self.device, checkpoint_path=checkpoint_path)
+        self.predictor = get_predictor(
+            model_dir,
+            self.device,
+            checkpoint_path=checkpoint_path,
+            lora_cfg=lora_cfg,
+            lora_adapter_path=lora_adapter_path,
+        )
 
     @torch.no_grad()
     def evaluate(self, datamodule):

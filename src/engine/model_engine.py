@@ -29,7 +29,6 @@ class VoxTellEngine:
         if model_dir is None:
             raise ValueError("model_dir must be provided in model_cfg or as argument")
         
-        logger.info("Loading VoxTell model from %s", model_dir)
         model, _ = load_voxtell_model(
             model_dir,
             deep_supervision=self.model_cfg.get("deep_supervision", False),

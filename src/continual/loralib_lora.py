@@ -64,6 +64,7 @@ def apply_loralib_lora(
     model: nn.Module,
     lora_cfg: dict[str, Any],
     target_modules: Sequence[str] | None = None,
+    mark_trainable: bool = True,
 ) -> nn.Module:
     # By default, adapt only TransformerDecoderLayer self and cross attention blocks.
     if target_modules is None:
@@ -89,14 +90,9 @@ def apply_loralib_lora(
     
     logger.info("Successfully injected LoRA into %d MultiheadAttention modules", replace_count)
 
-    bias = str(lora_cfg.get("bias", "none"))
-    mark_only_lora_as_trainable(model, bias=bias)
-    
-    # Count trainable parameters
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info("Model parameters - Total: %d | Trainable: %d | Frozen: %d",
-                total_params, trainable_params, total_params - trainable_params)
+    if mark_trainable:
+        bias = str(lora_cfg.get("bias", "none"))
+        mark_only_lora_as_trainable(model, bias=bias)
     
     return model
 
@@ -112,9 +108,15 @@ def save_lora_adapter(model: nn.Module, save_path: str | Path, bias: str = "none
     logger.info("Saved LoRA adapter to %s | Size: %d parameters", save_path, num_params)
 
 
-def load_lora_adapter(model: nn.Module, checkpoint_path: str | Path, bias: str = "none") -> nn.Module:
+def load_lora_adapter(
+    model: nn.Module,
+    checkpoint_path: str | Path,
+    bias: str = "none",
+    mark_trainable: bool = True,
+) -> nn.Module:
     state_dict = torch.load(checkpoint_path, map_location="cpu")
     model.load_state_dict(state_dict, strict=False)
-    mark_only_lora_as_trainable(model, bias=bias)
+    if mark_trainable:
+        mark_only_lora_as_trainable(model, bias=bias)
     logger.info("Loaded LoRA adapter from %s", checkpoint_path)
     return model

@@ -40,7 +40,8 @@ class VoxTellPredictor:
         max_text_length: Maximum text prompt length in tokens.
     """
     def __init__(self, model_dir: str, device: torch.device = torch.device('cuda'),
-                 text_encoding_model: str = 'Qwen/Qwen3-Embedding-4B', checkpoint_path: str | Path = None) -> None:
+                 text_encoding_model: str = 'Qwen/Qwen3-Embedding-4B', checkpoint_path: str | Path = None,
+                 lora_cfg: dict | None = None, lora_adapter_path: str | Path | None = None) -> None:
         """
         Initialize the VoxTell predictor.
         
@@ -64,7 +65,12 @@ class VoxTellPredictor:
 
         self.text_encoder = TextPromptEncoder(text_encoding_model, device=self.device)
 
-        self.network, self.patch_size = load_voxtell_model(model_dir, checkpoint_path=checkpoint_path)
+        self.network, self.patch_size = load_voxtell_model(
+            model_dir,
+            checkpoint_path=checkpoint_path,
+            lora_cfg=lora_cfg,
+            lora_adapter_path=lora_adapter_path,
+        )
         
         # Setting it to eval mode
         self.network.eval()
@@ -279,16 +285,18 @@ def predict_image(
     return segmentations
 
 
-def get_predictor(model_path, device, checkpoint_path=None):
+def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_adapter_path=None):
     model_path = Path(model_path)
 
     if not (model_path / "plans.json").exists():
         raise FileNotFoundError("plans.json missing")
 
-    logger.info("Loading model from %s", model_path)
+    logger.info("Loading model from %s", checkpoint_path if checkpoint_path else model_path)
 
     return VoxTellPredictor(
         model_dir=str(model_path),
         device=device,
-        checkpoint_path=checkpoint_path
+        checkpoint_path=checkpoint_path,
+        lora_cfg=lora_cfg,
+        lora_adapter_path=lora_adapter_path,
     )

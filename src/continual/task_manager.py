@@ -34,10 +34,6 @@ class ContinualTaskManager:
         self.continual_cfg = self.cfg.get("continual", {})
 
     @property
-    def run_name(self) -> str:
-        return str(self.continual_cfg.get("run_name", self.continual_cfg.get("baseline", "naive_sequential_finetuning")))
-
-    @property
     def strategy(self) -> str:
         return str(self.continual_cfg.get("strategy", self.continual_cfg.get("baseline", "naive_sequential_finetuning")))
 
@@ -48,10 +44,6 @@ class ContinualTaskManager:
     @property
     def from_scratch(self) -> bool:
         return bool(self.continual_cfg.get("from_scratch", True))
-
-    @property
-    def reset_optimizer_each_task(self) -> bool:
-        return bool(self.continual_cfg.get("reset_optimizer_each_task", True))
 
     @property
     def lora_cfg(self) -> dict[str, Any]:

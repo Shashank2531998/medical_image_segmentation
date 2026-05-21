@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
-from typing import List
 
 import torch
 from torch.utils.data import DataLoader
 
 from src.data.adapters import get_dataset_adapter
-from src.data.dataset import TrainingSample, VoxTellDataset
+from src.data.dataset import VoxTellDataset
+
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class VoxTellDataModule:
@@ -15,32 +19,70 @@ class VoxTellDataModule:
         cfg = cfg or {}
         self.batch_size = cfg.get("batch_size", 1)
         self.patch_size = tuple(cfg.get("patch_size", (192, 192, 192)))
+
         self.dataset_name = cfg.get("name", "aeropath")
-        self.train_root = cfg.get("train_root")
-        self.val_root = cfg.get("val_root")
-        self.val_fraction = float(cfg.get("val_fraction", 0.2))
+        self.train_root = cfg.get("root")
+        # keep compatibility: `root` attribute expected by other code
+        self.root = self.train_root
+
+        # fractions for split: train_fraction and val_fraction
+        self.train_fraction = float(cfg.get("train_fraction", 0.7))
+        self.val_fraction = float(cfg.get("val_fraction", 0.15))
+        self.foreground_patch_fraction = float(cfg.get("foreground_patch_fraction", 0.85))
+
         self.seed = cfg.get("seed")
+
         self.train_max_cases = cfg.get("train_max_cases")
         self.val_max_cases = cfg.get("val_max_cases")
+        self.test_max_cases = cfg.get("test_max_cases")
+        
+        self.filter_img_list = cfg.get("filter_img_list")
 
-        if not self.train_root:
-            raise ValueError("dataset.train_root (or dataset.root) must be provided")
+        if not (self.train_root):
+            raise ValueError("dataset.root must be provided")
 
-        self.train_samples, self.val_samples = self._build_splits()
+        self.train_samples, self.val_samples, self.test_samples = self._build_splits()
 
-    def _build_splits(self) -> tuple[List[TrainingSample], List[TrainingSample]]:
-        train_adapter = get_dataset_adapter(self.dataset_name, Path(self.train_root))
+    def _build_splits(self):
+        adapter = get_dataset_adapter(
+            self.dataset_name,
+            Path(self.root),
+        )
 
-        if self.val_root:
-            train_items = train_adapter.build_training_samples(max_cases=self.train_max_cases)
-            val_adapter = get_dataset_adapter(self.dataset_name, Path(self.val_root))
-            val_items = val_adapter.build_training_samples(max_cases=self.val_max_cases)
-        else:
-            train_cases, val_cases = train_adapter.split_cases(val_fraction=self.val_fraction, seed=self.seed)
-            train_items = train_adapter.build_training_samples(train_cases, max_cases=self.train_max_cases)
-            val_items = train_adapter.build_training_samples(val_cases, max_cases=self.val_max_cases)
+        all_cases = adapter.cases()
 
-        return train_items, val_items
+        rng = random.Random(self.seed)
+        rng.shuffle(all_cases)
+
+        n = len(all_cases)
+
+        n_train = round(n * self.train_fraction)
+        n_val = round(n * self.val_fraction)
+        n_test  = n - n_train - n_val 
+
+        train_cases = all_cases[:n_train]
+        val_cases = all_cases[n_train:n_train + n_val]
+        test_cases = all_cases[n_train + n_val:n_train + n_val + n_test]
+
+        logger.info(f"Train/Val/Test Split: {len(train_cases)}/{len(val_cases)}/{len(test_cases)}")
+
+        train_items = adapter.build_training_samples(
+            train_cases,
+            max_cases=self.train_max_cases,
+        )
+
+        val_items = adapter.build_training_samples(
+            val_cases,
+            max_cases=self.val_max_cases,
+        )
+
+        test_items = adapter.build_training_samples(
+            test_cases,
+            max_cases=self.test_max_cases,
+            filter_img_list=self.filter_img_list,
+        )
+
+        return train_items, val_items, test_items
 
     def _collate_batch(self, batch):
         images = torch.stack([item["image"] for item in batch], dim=0)
@@ -54,34 +96,22 @@ class VoxTellDataModule:
         }
 
     def train_dataloader(self) -> DataLoader:
-        ds = VoxTellDataset(self.train_samples, patch_size=self.patch_size, seed=self.seed)
+        ds = VoxTellDataset(
+            self.train_samples,
+            patch_size=self.patch_size,
+            seed=self.seed,
+            foreground_patch_fraction=self.foreground_patch_fraction,
+        )
         return DataLoader(ds, batch_size=self.batch_size, shuffle=True, collate_fn=self._collate_batch)
 
     def val_dataloader(self) -> DataLoader:
-        ds = VoxTellDataset(self.val_samples, patch_size=self.patch_size, seed=self.seed)
+        ds = VoxTellDataset(
+            self.val_samples,
+            patch_size=self.patch_size,
+            seed=self.seed,
+        )
         return DataLoader(ds, batch_size=self.batch_size, shuffle=False, collate_fn=self._collate_batch)
     
-
-class VoxTellTestDataModule(VoxTellDataModule):
-    def __init__(self, cfg: dict | None = None):
-        cfg = cfg or {}
-        self.batch_size = 1
-        self.dataset_name = cfg.get("name", "aeropath")
-        self.seed = int(cfg.get("seed", 42))
-        self.max_cases = cfg.get("test_max_cases")
-        self.test_root = cfg.get("test_root")
-        self.filter_img_list = cfg.get("filter_img_list")
-
-        if not self.test_root:
-            raise ValueError("dataset.test_root (or dataset.root) must be provided")
-
-        self.test_samples = self._build_test_samples()
-
-    def _build_test_samples(self) -> tuple[List[TrainingSample], List[TrainingSample]]:
-        test_adapter = get_dataset_adapter(self.dataset_name, Path(self.test_root))
-        test_items = test_adapter.build_training_samples(max_cases=self.max_cases, filter_img_list=self.filter_img_list)
-        return test_items
-
     def test_dataloader(self) -> DataLoader:
         ds = VoxTellDataset(self.test_samples, mode="test", seed=self.seed)
-        return DataLoader(ds, batch_size=self.batch_size, shuffle=True, collate_fn=self._collate_batch)
+        return DataLoader(ds, batch_size=self.batch_size, shuffle=False, collate_fn=self._collate_batch)

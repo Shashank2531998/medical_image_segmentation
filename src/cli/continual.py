@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import argparse
-import os
 from pathlib import Path
 
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-os.environ["HF_HUB_OFFLINE"] = "1"
+from src.cli.common import set_offline_mode
+
+set_offline_mode()
 
 from src.continual import ContinualTaskManager, merge_dicts
 from src.continual import apply_loralib_lora, save_lora_adapter
+from src.continual.experiment_evaluator import evaluate_continual_experiment
 from src.data.datamodule import VoxTellDataModule
 from src.engine.model_engine import VoxTellEngine
 from src.training.trainer import Trainer
@@ -22,6 +23,20 @@ logger = get_logger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    eval_group = parser.add_mutually_exclusive_group()
+    eval_group.add_argument(
+        "--evaluate",
+        dest="evaluate",
+        action="store_true",
+        help="Run continual evaluation after training (default)",
+    )
+    eval_group.add_argument(
+        "--no_evaluate",
+        dest="evaluate",
+        action="store_false",
+        help="Skip the continual evaluation pass after training",
+    )
+    parser.set_defaults(evaluate=True)
     return parser.parse_args()
 
 
@@ -38,10 +53,9 @@ def main():
     save_config_snapshot(cfg, dirs["root"])
     logger.info("Continual run root: %s", dirs["root"])
     logger.info(
-        "Strategy=%s | from_scratch=%s | reset_optimizer_each_task=%s | tasks=%d",
+        "Strategy=%s | from_scratch=%s | tasks=%d",
         task_manager.strategy,
         task_manager.from_scratch,
-        task_manager.reset_optimizer_each_task,
         len(tasks),
     )
 
@@ -56,6 +70,14 @@ def main():
     if task_manager.strategy == "lora":
         logger.info("Applying LoRA adaptation to base model...")
         base_model = apply_loralib_lora(base_model, task_manager.lora_cfg)
+        total_params = sum(p.numel() for p in base_model.parameters())
+        trainable_params = sum(p.numel() for p in base_model.parameters() if p.requires_grad)
+        logger.info(
+            "Model parameters - Total: %d | Trainable: %d | Frozen: %d",
+            total_params,
+            trainable_params,
+            total_params - trainable_params,
+        )
         engine.model = base_model
         logger.info("LoRA adaptation complete. Model ready for continual learning.")
 
@@ -94,6 +116,11 @@ def main():
             logger.info("Saved LoRA adapter for task %s", task.name)
 
     logger.info("Sequential fine-tuning baseline completed successfully")
+
+    if args.evaluate:
+        evaluate_continual_experiment(dirs["root"])
+    else:
+        logger.info("Skipping continual evaluation by request")
 
 
 if __name__ == "__main__":

@@ -1,13 +1,12 @@
 dataset:
   name: aeropath
-  train_root: ./data/AeroPath/
-  train_max_cases: 2
-  val_max_cases: 2
-  val_fraction: 0.2
-  seed: 42
+  root: ./data/AeroPath/
+  train_fraction: 0.7
+  val_fraction: 0.15
   batch_size: 1
   patch_size: [192, 192, 192]
-
+  seed: 42
+  
 model:
   dir: ./models/voxtell_v1.1
   device: cuda

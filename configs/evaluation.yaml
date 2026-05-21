@@ -1,8 +1,10 @@
 dataset:
   name: aeropath
-  test_root: ./data/AeroPath/
+  root: ./data/AeroPath/
   seed: 42
   batch_size: 1
+  train_fraction: 0.0
+  val_fraction: 0.0
 
 model:
   dir: ./models/voxtell_v1.1

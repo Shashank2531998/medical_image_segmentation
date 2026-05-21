@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.training.utils import seed_everything
+from src.utils.training_plot import plot_training_loss
 import torch
 import numpy as np
 import monai
@@ -43,6 +44,10 @@ class Trainer:
 
         self.best_val_loss = float("inf")
         self.dice_metric = monai.metrics.DiceMetric(include_background=True, reduction="none", ignore_empty=False)
+        
+        # Loss tracking for plotting
+        self.train_losses = []
+        self.val_losses = []
 
     def _build_optimizer_and_scheduler(self, iters_per_epoch=None):
         self.optimizer, self.scheduler, self._scheduler_per_iteration = build_optimizer_and_scheduler(
@@ -115,11 +120,9 @@ class Trainer:
         )
 
         # Logging
-        current_lrs = [pg["lr"] for pg in self.optimizer.param_groups]
         self.run_logger.info(
-            "    Loss: %.6f | LR(s): %s | Grad Norm (clipped): %.6f | Dice(mean): %.6f | Per-prompt: %s",
+            "    Loss: %.6f | Grad Norm (clipped): %.6f | Dice(mean): %.6f | Per-prompt: %s",
             loss.item(),
-            current_lrs,
             grad_norm,
             batch_dice_mean,
             per_prompt_str,
@@ -152,10 +155,10 @@ class Trainer:
         self._build_optimizer_and_scheduler(iters_per_epoch=len(train_loader))
         
         # Log optimizer and model info
-        optimizer_state = self.optimizer.state_dict()
-        self.run_logger.info("Optimizer: %s | LR: %s", 
-                            optimizer_state.get('param_groups', [{}])[0].get('name', 'unknown'),
-                            [pg['lr'] for pg in self.optimizer.param_groups])
+
+        checkpoints_dir = self.out_root / "checkpoints"
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
+        final_ckpt_path = checkpoints_dir / "final_checkpoint.pt"
 
         for epoch in range(self.epochs):
             self.run_logger.info(f"[EPOCH {epoch}/{self.epochs}]")
@@ -163,6 +166,7 @@ class Trainer:
             total_training_loss = 0.0
             for batch_idx, batch in enumerate(train_loader):
                 self.run_logger.info(f"  [BATCH {batch_idx}]")
+                self.run_logger.info("     Optimizer LR: %s", [pg['lr'] for pg in self.optimizer.param_groups])
                 loss = self.train_one_batch(batch_idx, batch, epoch)
                 total_training_loss += float(loss.item())
 
@@ -188,23 +192,29 @@ class Trainer:
                 epoch + 1, self.epochs, train_loss, val_loss
             )
 
+            # Collect losses for plotting
+            self.train_losses.append(train_loss)
+            self.val_losses.append(val_loss)
+
             # Experiment Checkpoints
-            checkpoints_dir = self.out_root / "checkpoints"
-            checkpoints_dir.mkdir(parents=True, exist_ok=True)
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
-                best_path = checkpoints_dir / f"best_model_epoch_{epoch}.pt"
+                best_path = checkpoints_dir / f"best_model.pt"
                 save_checkpoint(self.engine.model, self.optimizer, best_path)
                 self.run_logger.info("New best model saved (val_loss=%.6f) at epoch=%d", val_loss, epoch)        
-            elif (epoch + 1) % 10 == 0:
-                ckpt_path = checkpoints_dir / f"checkpoint_epoch_{epoch}.pt"
-                save_checkpoint(self.engine.model, self.optimizer, ckpt_path)
+            elif (epoch + 1) % 5 == 0:
+                save_checkpoint(self.engine.model, self.optimizer, final_ckpt_path)
                 self.run_logger.info("Checkpoint saved at epoch=%d", epoch)
         
-
-        final_ckpt_path = checkpoints_dir / "final_checkpoint.pt"
         save_checkpoint(self.engine.model, self.optimizer, final_ckpt_path)
         self.run_logger.info("Training completed successfully | Best validation loss: %.6f", self.best_val_loss)
+        
+        # Plot training loss
+        plot_training_loss(
+            self.train_losses, 
+            self.val_losses, 
+            self.out_root / "plots"
+        )
 
 
 if __name__ == '__main__':

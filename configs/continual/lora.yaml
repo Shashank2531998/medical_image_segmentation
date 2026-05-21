@@ -1,11 +1,12 @@
 dataset:
+  train_fraction: 0.7
+  val_fraction: 0.15
   batch_size: 1
   patch_size: [192, 192, 192]
-  val_fraction: 0.2
   seed: 42
   train_max_cases: 2
   val_max_cases: 2
-  val_fraction: 0.2
+  test_max_cases: 2
 
 model:
   dir: ./models/voxtell_v1.1
@@ -14,7 +15,7 @@ model:
   reinit_weights: false
 
 training:
-  epochs: 2
+  epochs: 1
   seed: 42
   use_deterministic_algorithms: false
   optimizer:
@@ -25,18 +26,27 @@ training:
     nesterov: true
 
 continual:
-  baseline: naive_sequential_finetuning
-  run_name: naive_sequential_finetuning
-  output_dir: ./experiments/continual/full_fine_tuning
+  strategy: lora
+  output_dir: ./experiments/continual/lora
   from_scratch: false
-  reset_optimizer_each_task: true
+  lora:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    # Restrict LoRA to TransformerDecoderLayer attention modules only.
+    target_modules:
+      - self_attn
+      - multihead_attn
+    # Attention projections to adapt: q, k, v, o.
+    attn_parts: [q, k, v, o]
+    bias: none
   tasks:
     - name: aeropath
       dataset:
         name: aeropath
-        train_root: ./data/AeroPath/
+        root: ./data/AeroPath/
 
     - name: fedbca_center2
       dataset:
         name: fedbca_center2
-        train_root: ./data/FedBCa/Center2/
+        root: ./data/FedBCa/Center2/

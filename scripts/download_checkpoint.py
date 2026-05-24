@@ -16,10 +16,10 @@ import argparse
 import os
 from pathlib import Path
 from huggingface_hub import snapshot_download
-from src.utils.logging import get_logger
+import logging
 
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def download_voxtell_checkpoint(model_name: str, download_dir: str) -> str:

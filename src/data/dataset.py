@@ -24,6 +24,7 @@ class TrainingSample:
     image_path: Path
     prompts: Optional[List[str]] = None
     mask_paths: list[Path | None] = field(default_factory=list)
+    mask_labels: list[int | None] = field(default_factory=list)
 
 
 class VoxTellDataset(Dataset):
@@ -60,12 +61,16 @@ class VoxTellDataset(Dataset):
         prompts = sample.prompts
 
         masks = []
-        for mask_path in sample.mask_paths:
+        for idx, mask_path in enumerate(sample.mask_paths):
             if mask_path is None:
                 mask = torch.zeros_like(img_tensor[0], dtype=torch.float32)
             else:
                 mask_arr, _ = self.reader.read_images([str(mask_path)])
                 mask = mask_arr[0].astype(np.float32)
+                if idx < len(sample.mask_labels) and sample.mask_labels[idx] is not None:
+                    mask = (mask == float(sample.mask_labels[idx])).astype(np.float32)
+                else:
+                    mask = (mask > 0).astype(np.float32)
                 mask = torch.from_numpy(crop_mask_to_bbox(mask, bbox))
 
             masks.append(mask)

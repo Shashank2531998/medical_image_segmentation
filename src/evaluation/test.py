@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import monai
 import numpy as np
+from datetime import datetime
 
 from src.training.losses import deep_supervision_loss
 from src.utils.logging import get_logger
@@ -154,7 +155,8 @@ class Evaluator:
         return prompt_metrics
 
     def _save_metrics(self, metrics: dict):
-        filename = "eval_latest.json"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"eval_{timestamp}.json"
 
         path = self.out_root / filename
 

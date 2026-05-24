@@ -1,6 +1,6 @@
 dataset:
-  name: aeropath
-  root: ./data/AeroPath/
+  name: veela
+  root: ./data/VEELA Train Set/
   train_fraction: 0.7
   val_fraction: 0.15
   batch_size: 1
@@ -23,4 +23,4 @@ training:
     momentum: 0.99
     poly_power: 1.0
     nesterov: true
-  output_dir: ./experiments/fine_tuning/dry_run
+  output_dir: ./experiments/fine_tuning/veela/dry_run

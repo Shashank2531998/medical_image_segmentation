@@ -1,6 +1,6 @@
 dataset:
-  name: aeropath
-  root: ./data/AeroPath/
+  name: veela
+  root: ./data/VEELA Train Set/
   seed: 42
   batch_size: 1
   train_fraction: 0.0
@@ -12,4 +12,4 @@ model:
   deep_supervision: false
 
 evaluation:
-  output_dir: ./experiments/evaluations/aeropath
+  output_dir: ./experiments/evaluations/veela

@@ -12,6 +12,7 @@ from src.data.dataset import TrainingSample
 class EvaluationCase:
     image_path: Path
     target_paths: dict[str, Path] | None = None
+    target_labels: dict[str, int] | None = None
     metadata: dict[str, str] | None = None
 
 
@@ -76,15 +77,18 @@ class DatasetAdapter(ABC):
 
             prompts = []
             mask_paths = []
+            mask_labels = []
             for label_name, mask_path in (case.target_paths or {}).items():
                 prompts.append(label_name)
                 mask_paths.append(mask_path)
+                mask_labels.append((case.target_labels or {}).get(label_name))
 
             samples.append(
                 TrainingSample(
                     image_path=case.image_path,
                     mask_paths=mask_paths,
                     prompts=prompts,
+                    mask_labels=mask_labels,
                 )
             )
 

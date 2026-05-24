@@ -33,15 +33,22 @@ class VEELATrainAdapter(DatasetAdapter):
     def build_case(self, case_id: str) -> EvaluationCase | None:
         """Build evaluation case for a given case ID."""
         image_path = self.dataset_root / f"{case_id}_norm.nii"
-        gt_path = self.dataset_root / f"{case_id}_gt.nii"
+        liver_mask_path = self.dataset_root / f"{case_id}_mask.nii"
+        vessels_mask_path = self.dataset_root / f"{case_id}_gt.nii"
 
         # Both image and ground truth must exist
-        if not image_path.exists() or not gt_path.exists():
+        if not image_path.exists() or not liver_mask_path.exists() or not vessels_mask_path.exists():
             return None
 
         return EvaluationCase(
             image_path=image_path,
             target_paths={
-                "liver": gt_path,
+                # "liver": liver_mask_path,
+                "hepatic vessels": vessels_mask_path,
+                "portal vessels": vessels_mask_path
+            },
+            target_labels={
+                "hepatic vessels": 1,
+                "portal vessels": 2,
             },
         )

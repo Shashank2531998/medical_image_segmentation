@@ -8,7 +8,7 @@ from src.cli.common import set_offline_mode
 
 set_offline_mode()
 
-from src.continual.experiment_evaluator import evaluate_continual_experiment
+from src.continual.evaluator import evaluate_continual_experiment
 from src.utils.logging import get_logger
 
 
@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--checkpoint_name",
-        default="final_checkpoint.pt",
+        default="best_model.pt",
         help="Checkpoint filename to evaluate inside each task checkpoint directory",
     )
     return parser.parse_args()

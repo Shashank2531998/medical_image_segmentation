@@ -1,5 +1,5 @@
 from src.continual.task_manager import ContinualTask, ContinualTaskManager, merge_dicts
-from src.continual.loralib_lora import apply_loralib_lora, save_lora_adapter, load_lora_adapter
+from src.continual.strategies.lora.loralib_lora import apply_loralib_lora, save_lora_adapter, load_lora_adapter
 
 __all__ = [
 	"ContinualTask",

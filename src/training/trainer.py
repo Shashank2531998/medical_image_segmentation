@@ -45,6 +45,13 @@ class Trainer:
         self.best_val_loss = float("inf")
         self.dice_metric = monai.metrics.DiceMetric(include_background=True, reduction="none", ignore_empty=False)
         
+        # Early stopping settings
+        es_cfg = self.train_cfg.get("early_stopping", {}) or {}
+        self.early_stopping_enabled = bool(es_cfg.get("enabled", False))
+        self.early_stopping_patience = int(es_cfg.get("patience", 5))
+        self.early_stopping_min_delta = float(es_cfg.get("min_delta", 0.0))
+        self._no_improve_epochs = 0
+
         # Loss tracking for plotting
         self.train_losses = []
         self.val_losses = []
@@ -158,7 +165,6 @@ class Trainer:
 
         checkpoints_dir = self.out_root / "checkpoints"
         checkpoints_dir.mkdir(parents=True, exist_ok=True)
-        final_ckpt_path = checkpoints_dir / "final_checkpoint.pt"
 
         for epoch in range(self.epochs):
             self.run_logger.info(f"[EPOCH {epoch}/{self.epochs}]")
@@ -196,17 +202,32 @@ class Trainer:
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
 
-            # Experiment Checkpoints
-            if val_loss < self.best_val_loss:
+            # Experiment Checkpoints + Early Stopping
+            improved = val_loss < (self.best_val_loss - self.early_stopping_min_delta)
+            if improved:
                 self.best_val_loss = val_loss
                 best_path = checkpoints_dir / f"best_model.pt"
                 save_checkpoint(self.engine.model, self.optimizer, best_path)
-                self.run_logger.info("New best model saved (val_loss=%.6f) at epoch=%d", val_loss, epoch)        
-            elif (epoch + 1) % 5 == 0:
-                save_checkpoint(self.engine.model, self.optimizer, final_ckpt_path)
-                self.run_logger.info("Checkpoint saved at epoch=%d", epoch)
+                self.run_logger.info("New best model saved (val_loss=%.6f) at epoch=%d", val_loss, epoch)
+                self._no_improve_epochs = 0
+            else:
+                self._no_improve_epochs += 1
+                if self.early_stopping_enabled:
+                    self.run_logger.info(
+                        "No improvement for %d/%d epochs (min_delta=%.6f)",
+                        self._no_improve_epochs,
+                        self.early_stopping_patience,
+                        self.early_stopping_min_delta,
+                    )
+
+            # Trigger early stopping if enabled
+            if self.early_stopping_enabled and self._no_improve_epochs >= self.early_stopping_patience:
+                self.run_logger.info(
+                    "Early stopping triggered after %d epochs without improvement",
+                    self._no_improve_epochs,
+                )
+                break
         
-        save_checkpoint(self.engine.model, self.optimizer, final_ckpt_path)
         self.run_logger.info("Training completed successfully | Best validation loss: %.6f", self.best_val_loss)
         
         # Plot training loss

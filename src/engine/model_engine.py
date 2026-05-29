@@ -33,7 +33,8 @@ class VoxTellEngine:
             model_dir,
             deep_supervision=self.model_cfg.get("deep_supervision", False),
             model_overrides=self.model_cfg,
-            reinit_weights=self.model_cfg.get("reinit_weights", False)
+            reinit_weights=self.model_cfg.get("reinit_weights", False),
+            checkpoint_path=self.model_cfg.get("checkpoint_path", None)
         )
         self.model = model.to(self.device)
         

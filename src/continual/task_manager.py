@@ -23,6 +23,7 @@ class ContinualTask:
     dataset_cfg: dict[str, Any]
     training_cfg: dict[str, Any]
     model_cfg: dict[str, Any]
+    is_retention: bool = False
 
 
 class ContinualTaskManager:
@@ -49,14 +50,11 @@ class ContinualTaskManager:
     def lora_cfg(self) -> dict[str, Any]:
         return dict(self.continual_cfg.get("lora", {}))
 
-    def tasks(self) -> list[ContinualTask]:
-        raw_tasks = list(self.continual_cfg.get("tasks", []))
-        if not raw_tasks:
-            raise ValueError("continual.tasks must contain at least one task")
-
+    def _build_tasks(self, raw_tasks: list[dict[str, Any]], *, is_retention: bool = False) -> list[ContinualTask]:
         tasks: list[ContinualTask] = []
         for index, task_cfg in enumerate(raw_tasks):
-            task_name = str(task_cfg.get("name", f"task_{index + 1:02d}"))
+            default_name = "retention_task_%02d" % (index + 1) if is_retention else "task_%02d" % (index + 1)
+            task_name = str(task_cfg.get("name", default_name))
             task_dataset_cfg = merge_dicts(self.base_dataset_cfg, task_cfg.get("dataset", {}))
             task_training_cfg = merge_dicts(self.base_training_cfg, task_cfg.get("training", {}))
             task_model_cfg = merge_dicts(self.base_model_cfg, task_cfg.get("model", {}))
@@ -67,11 +65,27 @@ class ContinualTaskManager:
                     dataset_cfg=task_dataset_cfg,
                     training_cfg=task_training_cfg,
                     model_cfg=task_model_cfg,
+                    is_retention=is_retention,
                 )
             )
         return tasks
 
+    def retention_tasks(self) -> list[ContinualTask]:
+        raw_tasks = list(self.continual_cfg.get("retention_tasks", []))
+        return self._build_tasks(raw_tasks, is_retention=True)
+
+    def tasks(self, include_retention: bool = False) -> list[ContinualTask]:
+        raw_tasks = list(self.continual_cfg.get("tasks", []))
+        if not raw_tasks:
+            raise ValueError("continual.tasks must contain at least one task")
+
+        training_tasks = self._build_tasks(raw_tasks)
+        if include_retention:
+            return self.retention_tasks() + training_tasks
+        return training_tasks
+
     @staticmethod
-    def task_dir_name(task: ContinualTask) -> str:
+    def task_dir_name(task: ContinualTask, task_number: int | None = None) -> str:
         slug = task.name.lower().replace(" ", "_").replace("/", "_")
-        return f"task_{task.index + 1:02d}_{slug}"
+        number = task.index + 1 if task_number is None else task_number
+        return f"task_{number:02d}_{slug}"

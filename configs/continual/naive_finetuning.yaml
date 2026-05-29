@@ -4,6 +4,9 @@ dataset:
   batch_size: 1
   patch_size: [192, 192, 192]
   seed: 42
+  train_max_cases: 2
+  val_max_cases: 2
+  test_max_cases: 2
 
 model:
   dir: ./models/voxtell_v1.1
@@ -12,9 +15,9 @@ model:
   reinit_weights: false
 
 training:
-  epochs: 5
+  epochs: 2
   seed: 42
-  use_deterministic_algorithms: false
+  use_deterministic_algorithms: true
   optimizer:
     lr: 0.0001
     weight_decay: 0.00003
@@ -26,12 +29,23 @@ continual:
   output_dir: ./experiments/continual/full_fine_tuning
   from_scratch: false
   tasks:
+    - name: skm_tea_tibial
+      dataset:
+        name: skm_tea_tibial
+        root: ./data/skm_tea/
+
+    - name: skm_tea_meniscus
+      dataset:
+        name: skm_tea_meniscus
+        root: ./data/skm_tea/
+
+    - name: skm_tea_other
+      dataset:
+        name: skm_tea_other
+        root: ./data/skm_tea/
+
+  retention_tasks:
     - name: aeropath
       dataset:
-        name: aeropath
+        name: skm_tea_tibial
         root: ./data/AeroPath/
-
-    - name: fedbca_center2
-      dataset:
-        name: fedbca_center2
-        root: ./data/FedBCa/Center2/

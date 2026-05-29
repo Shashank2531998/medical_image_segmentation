@@ -43,7 +43,7 @@ class VEELATrainAdapter(DatasetAdapter):
         return EvaluationCase(
             image_path=image_path,
             target_paths={
-                # "liver": liver_mask_path,
+                "liver": liver_mask_path,
                 "hepatic vessels": vessels_mask_path,
                 "portal vessels": vessels_mask_path
             },

@@ -1,6 +1,6 @@
 dataset:
-  name: veela
-  root: ./data/VEELA Train Set/
+  name: skm_tea_tibial
+  root: ./data/skm_tea/
   train_fraction: 0.7
   val_fraction: 0.15
   batch_size: 1
@@ -16,11 +16,11 @@ model:
 training:
   epochs: 2
   seed: 42
-  use_deterministic_algorithms: false
+  use_deterministic_algorithms: true
   optimizer:
     lr: 0.0001
     weight_decay: 0.00003
     momentum: 0.99
     poly_power: 1.0
     nesterov: true
-  output_dir: ./experiments/fine_tuning/veela/dry_run
+  output_dir: ./experiments/fine_tuning/skm_tea/dry_run

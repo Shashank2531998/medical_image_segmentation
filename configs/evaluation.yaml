@@ -1,6 +1,6 @@
 dataset:
-  name: veela
-  root: ./data/VEELA Train Set/
+  name: skm_tea_other
+  root: ./data/skm_tea/
   seed: 42
   batch_size: 1
   train_fraction: 0.0
@@ -12,4 +12,4 @@ model:
   deep_supervision: false
 
 evaluation:
-  output_dir: ./experiments/evaluations/veela
+  output_dir: ./experiments/evaluations/skm_tea_other

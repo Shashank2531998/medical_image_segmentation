@@ -4,6 +4,7 @@ from src.data.adapters.aeropath import AeroPathAdapter
 from src.data.adapters.veela import VEELATrainAdapter
 from src.data.adapters.fedbca import FedBCaCenter2Adapter
 from src.data.adapters.medseg_esophageal import MedSegEsophagealAdapter
+from src.data.adapters.skm_tea import SKMTEAAdapter, SKMTEAMeniscusAdapter, SKMTEAOtherAdapter, SKMTEATibialAdapter
 from src.data.adapters.base import DatasetAdapter, EvaluationCase
 
 
@@ -11,7 +12,11 @@ DATASET_ADAPTERS: dict[str, type[DatasetAdapter]] = {
 	"aeropath": AeroPathAdapter,
 	"veela": VEELATrainAdapter,
 	"fedbca_center2": FedBCaCenter2Adapter,
-	"medseg_esophageal": MedSegEsophagealAdapter
+	"medseg_esophageal": MedSegEsophagealAdapter,
+	"skm_tea": SKMTEAAdapter,
+	"skm_tea_tibial": SKMTEATibialAdapter,
+	"skm_tea_meniscus": SKMTEAMeniscusAdapter,
+	"skm_tea_other": SKMTEAOtherAdapter,
 }
 
 

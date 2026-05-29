@@ -61,16 +61,16 @@ def run_train_then_test(config_path: str | Path) -> None:
     trainer = Trainer(model_engine, train_cfg)
     trainer.fit(datamodule)
 
-    final_checkpoint = dirs["root"] / "checkpoints" / "final_checkpoint.pt"
-    if not final_checkpoint.exists():
-        raise FileNotFoundError(f"Expected final checkpoint at {final_checkpoint}")
+    best_model = dirs["root"] / "checkpoints" / "best_model.pt"
+    if not best_model.exists():
+        raise FileNotFoundError(f"Expected Best model checkpoint at {best_model}")
 
     test_dir = dirs["root"] / "test"
     test_dir.mkdir(parents=True, exist_ok=True)
 
     eval_model_cfg = {
         **model_cfg,
-        "checkpoint_path": str(final_checkpoint),
+        "checkpoint_path": str(best_model),
     }
     eval_cfg = {
         "output_dir": str(test_dir),

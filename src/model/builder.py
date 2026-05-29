@@ -9,7 +9,7 @@ from batchgenerators.utilities.file_and_folder_operations import join, load_json
 from torch._dynamo import OptimizedModule
 
 from src.model.voxtell_model import VoxTellModel
-from src.continual.loralib_lora import apply_loralib_lora, load_lora_adapter
+from src.continual.strategies.lora.loralib_lora import apply_loralib_lora, load_lora_adapter
 
 from src.utils.logging import get_logger
 

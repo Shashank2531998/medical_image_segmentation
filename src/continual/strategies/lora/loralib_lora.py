@@ -6,8 +6,8 @@ from typing import Any, Sequence
 import torch
 from torch import nn
 
-from src.continual.loralib.utils import lora_state_dict, mark_only_lora_as_trainable
-from src.continual.loralib.layers import LinearLoRA, PlainMultiheadAttentionLoRA
+from src.continual.strategies.lora.loralib.utils import lora_state_dict, mark_only_lora_as_trainable
+from src.continual.strategies.lora.loralib.layers import LinearLoRA, PlainMultiheadAttentionLoRA
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

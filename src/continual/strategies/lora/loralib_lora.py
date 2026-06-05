@@ -9,7 +9,6 @@ from torch import nn
 from src.continual.strategies.lora.loralib.utils import lora_state_dict, mark_only_lora_as_trainable
 from src.continual.strategies.lora.loralib.layers import LinearLoRA, PlainMultiheadAttentionLoRA
 from src.utils.logging import get_logger
-from src.utils.model_helpers import log_model_params
 
 logger = get_logger(__name__)
 
@@ -86,8 +85,6 @@ def apply_loralib_lora(
     logger.info("Attention parts to adapt: %s", lora_cfg.get("attn_parts", ["q", "k", "v", "o"]))
     
     replace_count = _replace_attention_modules(model, lora_cfg, target_modules=target_modules)
-
-    log_model_params(model)
 
     if replace_count == 0:
         raise ValueError("No MultiheadAttention modules were replaced; check target_modules or model structure.")

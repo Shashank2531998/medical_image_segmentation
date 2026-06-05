@@ -25,7 +25,7 @@ def seed_everything(
     torch.backends.cudnn.benchmark = not deterministic
 
     if deterministic:
-        torch.use_deterministic_algorithms(True)
+        torch.use_deterministic_algorithms(True, warn_only=True)
 
     logger.info(
         "Seed initialized | seed=%d deterministic=%s",

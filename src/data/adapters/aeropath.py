@@ -28,7 +28,7 @@ class AeroPathAdapter(DatasetAdapter):
         return EvaluationCase(
             image_path=image_path,
             target_paths={
-                "trachea": airway_path,
+                # "trachea": airway_path,
                 "lung": lungs_path,
                 # **{prompt: None for prompt in invalid_prompts}
             },

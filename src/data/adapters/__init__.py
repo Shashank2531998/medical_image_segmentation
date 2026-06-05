@@ -4,7 +4,7 @@ from src.data.adapters.aeropath import AeroPathAdapter
 from src.data.adapters.veela import VEELATrainAdapter
 from src.data.adapters.fedbca import FedBCaCenter2Adapter
 from src.data.adapters.medseg_esophageal import MedSegEsophagealAdapter
-from src.data.adapters.skm_tea import SKMTEAAdapter, SKMTEAMeniscusAdapter, SKMTEAOtherAdapter, SKMTEATibialAdapter
+from src.data.adapters import skm_tea as skm_tea_adapters
 from src.data.adapters.base import DatasetAdapter, EvaluationCase
 
 
@@ -13,10 +13,13 @@ DATASET_ADAPTERS: dict[str, type[DatasetAdapter]] = {
 	"veela": VEELATrainAdapter,
 	"fedbca_center2": FedBCaCenter2Adapter,
 	"medseg_esophageal": MedSegEsophagealAdapter,
-	"skm_tea": SKMTEAAdapter,
-	"skm_tea_tibial": SKMTEATibialAdapter,
-	"skm_tea_meniscus": SKMTEAMeniscusAdapter,
-	"skm_tea_other": SKMTEAOtherAdapter,
+	"skm_tea": skm_tea_adapters.SKMTEAAdapter,
+	"skm_tea_medial_tibial": skm_tea_adapters.SKMTEAMedialTibialAdapter,
+	"skm_tea_medial_meniscus": skm_tea_adapters.SKMTEAMedialMeniscusAdapter,
+	"skm_tea_patellar": skm_tea_adapters.SKMTEAPatellarAdapter,
+	"skm_tea_femoral": skm_tea_adapters.SKMTEAFemoralAdapter,
+	"skm_tea_lateral_tibial": skm_tea_adapters.SKMTEALateralTibialAdapter,
+	"skm_tea_lateral_meniscus": skm_tea_adapters.SKMTEALateralMeniscusAdapter,
 }
 
 

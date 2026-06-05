@@ -10,7 +10,7 @@ _STRATEGY_REGISTRY: dict[str, StrategyType] = {}
 
 
 def register_strategy(cls: StrategyType) -> StrategyType:
-    names = [cls.strategy_name, *cls.aliases]
+    names = [cls.strategy_name]
     names = [name for name in names if name]
     if not names:
         raise ValueError(f"Strategy class {cls.__name__} must define strategy_name or aliases")

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from src.training.utils import seed_everything
 from src.utils.training_plot import plot_training_loss
@@ -11,16 +10,18 @@ import monai
 
 from src.training.losses import deep_supervision_loss
 from src.training.optimizer import build_optimizer_and_scheduler
-from src.utils.checkpoint import save_checkpoint
+from src.utils.checkpoint import load_checkpoint, save_checkpoint
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 class Trainer:
-    def __init__(self, engine, train_cfg: dict | None = None):
+    def __init__(self, engine, train_cfg: dict | None = None, hooks=None, task=None):
         self.engine = engine
         self.train_cfg = train_cfg or {}
+        self.hooks = hooks
+        self.task = task
         self.device = self.engine.device
 
         self.epochs = int(self.train_cfg.get("epochs", 1))
@@ -55,6 +56,10 @@ class Trainer:
         # Loss tracking for plotting
         self.train_losses = []
         self.val_losses = []
+
+        # Recovery checkpointing for crash-safe resume.
+        self.resume_checkpoint_interval = int(self.train_cfg.get("resume_checkpoint_interval", 1))
+        self.recovery_checkpoint_path = self.out_root / "checkpoints" / "latest_recovery.pt"
 
     def _build_optimizer_and_scheduler(self, iters_per_epoch=None):
         self.optimizer, self.scheduler, self._scheduler_per_iteration = build_optimizer_and_scheduler(
@@ -137,7 +142,90 @@ class Trainer:
 
         return loss
 
-    def fit(self, datamodule):
+    def _notify_batch_end(self, *, batch_idx: int, epoch: int, batch_loss: float) -> None:
+        if self.hooks is None:
+            return
+
+        callback = getattr(self.hooks, "on_train_batch_end", None)
+        if callable(callback):
+            callback(task=self.task, batch_idx=batch_idx, epoch=epoch, batch_loss=batch_loss)
+
+    def _notify_recovery_checkpoint(self, *, checkpoint_path: Path, epoch: int, batch_idx: int, stage: str) -> None:
+        if self.hooks is None:
+            return
+
+        callback = getattr(self.hooks, "on_recovery_checkpoint", None)
+        if callable(callback):
+            callback(
+                task=self.task,
+                checkpoint_path=checkpoint_path,
+                epoch=epoch,
+                batch_idx=batch_idx,
+                stage=stage,
+            )
+
+    def _save_recovery_checkpoint(self, *, epoch: int, batch_idx: int, stage: str) -> None:
+        metadata = {
+            "epoch": int(epoch),
+            "batch_idx": int(batch_idx),
+            "stage": str(stage),
+            "best_val_loss": float(self.best_val_loss),
+            "no_improve_epochs": int(self._no_improve_epochs),
+            "train_losses": list(self.train_losses),
+            "val_losses": list(self.val_losses),
+        }
+        save_checkpoint(
+            self.engine.model,
+            self.optimizer,
+            self.recovery_checkpoint_path,
+            scheduler=self.scheduler,
+            metadata=metadata,
+        )
+        self._notify_recovery_checkpoint(
+            checkpoint_path=self.recovery_checkpoint_path,
+            epoch=epoch,
+            batch_idx=batch_idx,
+            stage=stage,
+        )
+
+    def _load_recovery_checkpoint(self, resume_from: str | Path) -> tuple[int, int]:
+        checkpoint = load_checkpoint(resume_from, map_location="cpu")
+        self.engine.model.load_state_dict(checkpoint["network_weights"])
+
+        optimizer_state = checkpoint.get("optimizer_state")
+        if optimizer_state is not None:
+            self.optimizer.load_state_dict(optimizer_state)
+
+        scheduler_state = checkpoint.get("scheduler_state")
+        if scheduler_state is not None and self.scheduler is not None:
+            self.scheduler.load_state_dict(scheduler_state)
+
+        self.best_val_loss = float(checkpoint.get("best_val_loss", self.best_val_loss))
+        self._no_improve_epochs = int(checkpoint.get("no_improve_epochs", self._no_improve_epochs))
+        self.train_losses = list(checkpoint.get("train_losses", self.train_losses))
+        self.val_losses = list(checkpoint.get("val_losses", self.val_losses))
+
+        epoch = int(checkpoint.get("epoch", 0))
+        batch_idx = int(checkpoint.get("batch_idx", -1))
+        stage = str(checkpoint.get("stage", "train_batch"))
+
+        if stage == "epoch_end":
+            start_epoch = epoch + 1
+            start_batch = 0
+        else:
+            start_epoch = epoch
+            start_batch = batch_idx + 1
+
+        self.run_logger.info(
+            "Resuming from checkpoint=%s | stage=%s | start_epoch=%d | start_batch=%d",
+            resume_from,
+            stage,
+            start_epoch,
+            start_batch,
+        )
+        return start_epoch, start_batch
+
+    def fit(self, datamodule, resume_from: str | Path | None = None):
 
         # Determinism / seeding
         seed = int(self.train_cfg.get("seed", 42))
@@ -166,17 +254,50 @@ class Trainer:
         checkpoints_dir = self.out_root / "checkpoints"
         checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-        for epoch in range(self.epochs):
+        start_epoch = 0
+        start_batch = 0
+        if resume_from is not None:
+            start_epoch, start_batch = self._load_recovery_checkpoint(resume_from)
+
+        if start_epoch >= self.epochs:
+            self.run_logger.info(
+                "Resume checkpoint indicates training already finished for configured epochs=%d",
+                self.epochs,
+            )
+            final_train_loss = self.train_losses[-1] if self.train_losses else float("nan")
+            final_val_loss = self.val_losses[-1] if self.val_losses else float("nan")
+            return {
+                "train_loss": final_train_loss,
+                "val_loss": final_val_loss,
+                "best_val_loss": self.best_val_loss,
+                "epochs_ran": len(self.train_losses),
+                "train_losses": list(self.train_losses),
+                "val_losses": list(self.val_losses),
+            }
+
+        for epoch in range(start_epoch, self.epochs):
             self.run_logger.info(f"[EPOCH {epoch}/{self.epochs}]")
             self.engine.model.train()
             total_training_loss = 0.0
+            batches_processed = 0
             for batch_idx, batch in enumerate(train_loader):
+                if epoch == start_epoch and batch_idx < start_batch:
+                    continue
                 self.run_logger.info(f"  [BATCH {batch_idx}]")
                 self.run_logger.info("     Optimizer LR: %s", [pg['lr'] for pg in self.optimizer.param_groups])
                 loss = self.train_one_batch(batch_idx, batch, epoch)
                 total_training_loss += float(loss.item())
+                batches_processed += 1
+                self._notify_batch_end(batch_idx=batch_idx, epoch=epoch, batch_loss=float(loss.item()))
+                if self.resume_checkpoint_interval > 0 and (batch_idx + 1) % self.resume_checkpoint_interval == 0:
+                    self._save_recovery_checkpoint(epoch=epoch, batch_idx=batch_idx, stage="train_batch")
 
-            train_loss = total_training_loss / len(train_loader)
+            if batches_processed == 0:
+                self.run_logger.info("No train batches processed for epoch=%d, skipping loss/scheduler/validation", epoch)
+                start_batch = 0
+                continue
+
+            train_loss = total_training_loss / batches_processed
 
             # step scheduler per-epoch if configured that way
             if getattr(self, "_scheduler_per_iteration", False) is False and self.scheduler is not None:
@@ -201,6 +322,7 @@ class Trainer:
             # Collect losses for plotting
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
+            self._save_recovery_checkpoint(epoch=epoch, batch_idx=-1, stage="epoch_end")
 
             # Experiment Checkpoints + Early Stopping
             improved = val_loss < (self.best_val_loss - self.early_stopping_min_delta)
@@ -227,6 +349,9 @@ class Trainer:
                     self._no_improve_epochs,
                 )
                 break
+
+            # Reset resume offset after the first resumed epoch.
+            start_batch = 0
         
         self.run_logger.info("Training completed successfully | Best validation loss: %.6f", self.best_val_loss)
         
@@ -236,6 +361,18 @@ class Trainer:
             self.val_losses, 
             self.out_root / "plots"
         )
+
+        final_train_loss = self.train_losses[-1] if self.train_losses else float("nan")
+        final_val_loss = self.val_losses[-1] if self.val_losses else float("nan")
+
+        return {
+            "train_loss": final_train_loss,
+            "val_loss": final_val_loss,
+            "best_val_loss": self.best_val_loss,
+            "epochs_ran": len(self.train_losses),
+            "train_losses": list(self.train_losses),
+            "val_losses": list(self.val_losses),
+        }
 
 
 if __name__ == '__main__':

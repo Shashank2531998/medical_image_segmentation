@@ -1,0 +1,72 @@
+dataset:
+  train_fraction: 0.7
+  val_fraction: 0.15
+  batch_size: 1
+  patch_size: [192, 192, 192]
+  seed: 42
+  train_max_cases: 2
+  val_max_cases: 2
+  test_max_cases: 2
+
+model:
+  dir: ./models/voxtell_v1.1
+  device: cuda
+  deep_supervision: false
+  reinit_weights: false
+
+training:
+  epochs: 1
+  seed: 42
+  use_deterministic_algorithms: true
+  optimizer:
+    lr: 0.0001
+    weight_decay: 0.00003
+    momentum: 0.99
+    poly_power: 1.0
+    nesterov: true
+
+continual:
+  strategy: dynamic_lora
+  output_dir: ./experiments/continual/dynamic_lora
+  from_scratch: false
+  lora:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    # Sparse routing: execute only the top-k experts per forward pass.
+    router_top_k: 2
+    router_temperature: 1.0
+    initial_experts: 1
+    max_experts: 6
+    # Restrict LoRA to TransformerDecoderLayer attention modules only.
+    target_modules:
+      - self_attn
+      - multihead_attn
+    # Attention projections to adapt: q, k, v, o.
+    attn_parts: [q, k, v, o]
+    bias: none
+    growth:
+      enabled: true
+      # Batch mode grows during training every N batches; task mode falls back to after_task.
+      schedule:
+        mode: batch
+        every_n_batches: 10
+        cooldown_batches: 10
+      entropy_threshold: 0.85
+      add_experts: 1
+      # Only grow the highest-entropy modules and keep expansion local.
+      max_modules_per_task: 2
+      locations:
+        - transformer_decoder.layers
+        - self_attn
+        - multihead_attn
+  tasks:
+    - name: aeropath
+      dataset:
+        name: aeropath
+        root: ./data/AeroPath/
+
+    - name: fedbca_center2
+      dataset:
+        name: fedbca_center2
+        root: ./data/FedBCa/Center2/

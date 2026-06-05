@@ -6,6 +6,7 @@ from typing import Any
 from src.continual.task_manager import ContinualTask, ContinualTaskManager
 from src.utils.logging import get_logger
 
+from . import strategies as _strategy_registry  # noqa: F401
 from .strategies.registry import create_strategy
 
 
@@ -17,6 +18,7 @@ def run_continual_strategy(
     task_manager: ContinualTaskManager,
     tasks: list[ContinualTask],
     dirs: dict[str, Path],
+    logger
 ) -> None:
     strategy = create_strategy(
         task_manager.strategy,

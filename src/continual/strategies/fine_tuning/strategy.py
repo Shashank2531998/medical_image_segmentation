@@ -12,10 +12,6 @@ from ..registry import register_strategy
 @register_strategy
 class NaiveSequentialFinetuningStrategy(BaseContinualStrategy):
     strategy_name = "naive_sequential_finetuning"
-    aliases = ("sequential_finetuning", "baseline")
-
-    def completion_message(self) -> str:
-        return "Sequential fine-tuning baseline completed successfully"
 
 
 def run_naive_sequential_finetuning(

@@ -13,6 +13,7 @@ from src.data.preprocess import preprocess_image
 from src.inference.postprocessing import logits_to_segmentation
 from src.inference.sliding_window import SlidingWindowInferer
 from src.model.builder import load_voxtell_model
+from src.continual.strategies.lora.strategy import LoRAStrategy
 from src.text.encoder import TextPromptEncoder
 from src.utils.reorientation import reorient_seg_from_props
 from src.utils.logging import get_logger
@@ -68,9 +69,14 @@ class VoxTellPredictor:
         self.network, self.patch_size = load_voxtell_model(
             model_dir,
             checkpoint_path=checkpoint_path,
-            lora_cfg=lora_cfg,
-            lora_adapter_path=lora_adapter_path,
         )
+
+        if lora_cfg is not None:
+            self.network = LoRAStrategy.configure_loaded_model(
+                self.network,
+                lora_cfg=lora_cfg,
+                lora_adapter_path=lora_adapter_path,
+            )
         
         # Setting it to eval mode
         self.network.eval()

@@ -8,8 +8,9 @@ import torch
 from batchgenerators.utilities.file_and_folder_operations import join, load_json
 from torch._dynamo import OptimizedModule
 
+from src.continual.strategies.lora.loading import configure_loaded_lora_model
 from src.model.voxtell_model import VoxTellModel
-from src.continual.strategies.lora.loralib_lora import apply_loralib_lora, load_lora_adapter
+from src.utils.model_helpers import log_model_params
 
 from src.utils.logging import get_logger
 
@@ -74,32 +75,14 @@ def load_voxtell_model(
     target_network.load_state_dict(checkpoint["network_weights"])
 
     if lora_cfg is not None:
-        target_network = apply_loralib_lora(
+        target_network = configure_loaded_lora_model(
             target_network,
-            lora_cfg,
+            lora_cfg=lora_cfg,
+            lora_adapter_path=lora_adapter_path,
             mark_trainable=lora_adapter_path is None,
         )
-        if lora_adapter_path is not None:
-            load_lora_adapter(
-                target_network,
-                lora_adapter_path,
-                bias=str(lora_cfg.get("bias", "none")),
-                mark_trainable=False,
-            )
-
-            # Make the complete model trainable (default)
-            for p in target_network.parameters():
-                p.requires_grad = True
-
-
-    total_params = sum(p.numel() for p in target_network.parameters())
-    trainable_params = sum(p.numel() for p in target_network.parameters() if p.requires_grad)
-    logger.info(
-        "Model parameters - Total: %d | Trainable: %d | Frozen: %d",
-        total_params,
-        trainable_params,
-        total_params - trainable_params,
-    )
+    
+    log_model_params(target_network)
 
     if reinit_weights:
         network.apply(VoxTellModel.initialize)

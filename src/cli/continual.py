@@ -20,6 +20,11 @@ logger = get_logger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument(
+        "--resume_experiment",
+        default=None,
+        help="Path to an existing continual experiment directory to resume in-place",
+    )
     eval_group = parser.add_mutually_exclusive_group()
     eval_group.add_argument(
         "--evaluate",
@@ -46,7 +51,22 @@ def main():
     tasks = task_manager.tasks()
 
     run_root = task_manager.output_dir
-    dirs = make_experiment_dir(run_root, subdirs=["logs", "tasks"])
+    resume_experiment = args.resume_experiment or task_manager.continual_cfg.get("resume_experiment")
+
+    if resume_experiment:
+        resume_root = Path(resume_experiment)
+        resume_root.mkdir(parents=True, exist_ok=True)
+        dirs = {
+            "root": resume_root,
+            "logs": resume_root / "logs",
+            "tasks": resume_root / "tasks",
+        }
+        dirs["logs"].mkdir(parents=True, exist_ok=True)
+        dirs["tasks"].mkdir(parents=True, exist_ok=True)
+        logger.info("Resuming continual experiment in existing run root: %s", dirs["root"])
+    else:
+        dirs = make_experiment_dir(run_root, subdirs=["logs", "tasks"])
+
     save_config_snapshot(cfg, dirs["root"])
     logger.info("Continual run root: %s", dirs["root"])
     logger.info(

@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 
 class Evaluator:
-    def __init__(self, model_cfg: dict | None = None, eval_cfg: dict | None = None):
+    def __init__(self, model_cfg: dict | None = None, eval_cfg: dict | None = None, disable_adapters=False):
         self.eval_cfg = eval_cfg or {}
         self.model_cfg = model_cfg or {}
 
@@ -36,17 +36,18 @@ class Evaluator:
         self.dice_metric = monai.metrics.DiceMetric(include_background=True, reduction="none", ignore_empty=False)
 
         model_dir = self.model_cfg.get("dir", None)
-        checkpoint_path = self.model_cfg.get("checkpoint_path", None)
+        self.checkpoint_path = self.model_cfg.get("checkpoint_path", None)
         lora_cfg = self.model_cfg.get("lora_cfg", None)
-        lora_adapter_path = self.model_cfg.get("lora_adapter_path", None)
+        self.lora_adapter_path = self.model_cfg.get("lora_adapter_path", None)
         if model_dir is None:
             raise ValueError("model_dir must be provided in model_cfg or as argument")
         self.predictor = get_predictor(
             model_dir,
             self.device,
-            checkpoint_path=checkpoint_path,
+            checkpoint_path=self.checkpoint_path,
             lora_cfg=lora_cfg,
-            lora_adapter_path=lora_adapter_path,
+            lora_adapter_path=self.lora_adapter_path,
+            disable_adapters=disable_adapters
         )
 
     @torch.no_grad()
@@ -58,7 +59,12 @@ class Evaluator:
         test_loader = datamodule.test_dataloader()
 
         self.logger.info(
-            "Evaluation started | device=%s | batches=%d",
+            f"Model Checkpoint: {self.checkpoint_path} | LoRA Adapter Path: {self.lora_adapter_path}"
+        )
+
+        self.logger.info(
+            "Evaluation started | dataset=%s | device=%s | batches=%d",
+            datamodule.dataset_name,
             self.device,
             len(test_loader),
         )

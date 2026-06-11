@@ -5,6 +5,7 @@ import torch
 from src.model.builder import load_voxtell_model
 from src.text.encoder import TextPromptEncoder
 from src.utils.logging import get_logger
+from src.utils.model_helpers import log_model_params
 
 logger = get_logger(__name__)
 
@@ -39,8 +40,7 @@ class VoxTellEngine:
         self.model = model.to(self.device)
         
         # Log model info
-        total_params = sum(p.numel() for p in self.model.parameters())
-        logger.info("Model loaded successfully | device=%s | parameters=%d", self.device, total_params)
+        log_model_params(self.model)
 
     def forward(self, batch):
         imgs = batch["image"].to(self.device)

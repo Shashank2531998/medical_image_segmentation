@@ -12,6 +12,7 @@ from src.continual.task_manager import ContinualTask, ContinualTaskManager, merg
 from src.data.datamodule import VoxTellDataModule
 from src.engine.model_engine import VoxTellEngine
 from src.training.trainer import Trainer
+from src.utils.model_helpers import log_model_params
 
 
 @dataclass(frozen=True)
@@ -116,10 +117,13 @@ class BaseContinualStrategy(ABC):
             str(resume_checkpoint) if resume_checkpoint else "<none>",
         )
 
-        for task in self.tasks[start_task_index:]:
-            self.engine = self.build_engine()
-            self.configure_engine()
+        self.engine = self.build_engine()
 
+        for task in self.tasks[start_task_index:]:
+            
+            self.configure_engine()
+            log_model_params(self.engine.model)
+            
             task_dir = self.dirs["root"] / "tasks" / self.task_manager.task_dir_name(task)
             task_dir.mkdir(parents=True, exist_ok=True)
 
@@ -198,6 +202,16 @@ class BaseContinualStrategy(ABC):
         }
         self._save_state(state)
 
+    def compute_loss(
+        self,
+        *,
+        task: ContinualTask,
+        batch: dict[str, Any],
+        outputs: Any,
+        base_loss: Any,
+    ) -> Any:
+        return base_loss
+
     def require_engine(self) -> VoxTellEngine:
         if self.engine is None:
             raise RuntimeError("Strategy engine has not been initialized")
@@ -227,7 +241,4 @@ class BaseContinualStrategy(ABC):
         task_training_cfg: dict[str, Any],
         task_metrics: dict[str, Any] | None = None,
     ) -> None:
-        self.base_model_cfg={
-            **self.base_model_cfg,
-            "checkpoint_path": str(task_dir / "checkpoints" / "best_model.pt"),
-        }
+        return None

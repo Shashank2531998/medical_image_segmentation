@@ -141,7 +141,7 @@ class ContinualExperimentEvaluator:
             for row_idx, eval_task in enumerate(self.evaluation_tasks):
                 if raw_metrics[row_idx][col_idx] is not None:
                     continue
-
+                
                 metrics = evaluator.evaluate(
                     VoxTellDataModule(eval_task.dataset_cfg)
                 )

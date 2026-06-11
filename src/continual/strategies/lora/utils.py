@@ -5,30 +5,12 @@
 import torch
 import torch.nn as nn
 
-from typing import Dict
+from typing import Dict, Sequence
 
-from .layers import LoRALayer
-
-
-def mark_only_lora_as_trainable(model: nn.Module, bias: str = 'none') -> None:
-    for n, p in model.named_parameters():
-        if 'lora_' not in n:
-            p.requires_grad = False
-    if bias == 'none':
-        return
-    elif bias == 'all':
-        for n, p in model.named_parameters():
-            if 'bias' in n:
-                p.requires_grad = True
-    elif bias == 'lora_only':
-        for m in model.modules():
-            if isinstance(m, LoRALayer) and \
-                hasattr(m, 'bias') and \
-                m.bias is not None:
-                    m.bias.requires_grad = True
-    else:
-        raise NotImplementedError
-
+def _matches_target(full_name: str, target_modules: Sequence[str] | None) -> bool:
+    if not target_modules:
+        return True
+    return any(target in full_name for target in target_modules)
 
 def lora_state_dict(model: nn.Module, bias: str = 'none') -> Dict[str, torch.Tensor]:
     my_state_dict = model.state_dict()

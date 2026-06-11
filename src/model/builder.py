@@ -81,8 +81,6 @@ def load_voxtell_model(
             lora_adapter_path=lora_adapter_path,
             mark_trainable=lora_adapter_path is None,
         )
-    
-    log_model_params(target_network)
 
     if reinit_weights:
         network.apply(VoxTellModel.initialize)

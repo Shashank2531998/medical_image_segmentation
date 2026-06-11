@@ -13,8 +13,8 @@ from src.data.preprocess import preprocess_image
 from src.inference.postprocessing import logits_to_segmentation
 from src.inference.sliding_window import SlidingWindowInferer
 from src.model.builder import load_voxtell_model
-from src.continual.strategies.lora.strategy import LoRAStrategy
 from src.text.encoder import TextPromptEncoder
+from src.utils.model_helpers import log_model_params, set_adapters_enabled
 from src.utils.reorientation import reorient_seg_from_props
 from src.utils.logging import get_logger
 
@@ -42,7 +42,9 @@ class VoxTellPredictor:
     """
     def __init__(self, model_dir: str, device: torch.device = torch.device('cuda'),
                  text_encoding_model: str = 'Qwen/Qwen3-Embedding-4B', checkpoint_path: str | Path = None,
-                 lora_cfg: dict | None = None, lora_adapter_path: str | Path | None = None) -> None:
+                 lora_cfg: dict | None = None, lora_adapter_path: str | Path | None = None,
+                 disable_adapters = False
+                 ) -> None:
         """
         Initialize the VoxTell predictor.
         
@@ -69,17 +71,17 @@ class VoxTellPredictor:
         self.network, self.patch_size = load_voxtell_model(
             model_dir,
             checkpoint_path=checkpoint_path,
+            lora_cfg=lora_cfg,
+            lora_adapter_path=lora_adapter_path,
         )
-
-        if lora_cfg is not None:
-            self.network = LoRAStrategy.configure_loaded_model(
-                self.network,
-                lora_cfg=lora_cfg,
-                lora_adapter_path=lora_adapter_path,
-            )
         
         # Setting it to eval mode
         self.network.eval()
+
+        if disable_adapters:
+            set_adapters_enabled(self.network, False)
+
+        log_model_params(self.network)
         
         self.network = self.network.to(device)
         self.sliding_window = SlidingWindowInferer(
@@ -291,7 +293,7 @@ def predict_image(
     return segmentations
 
 
-def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_adapter_path=None):
+def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_adapter_path=None, disable_adapters=False):
     model_path = Path(model_path)
 
     if not (model_path / "plans.json").exists():
@@ -305,4 +307,5 @@ def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_
         checkpoint_path=checkpoint_path,
         lora_cfg=lora_cfg,
         lora_adapter_path=lora_adapter_path,
+        disable_adapters=disable_adapters
     )

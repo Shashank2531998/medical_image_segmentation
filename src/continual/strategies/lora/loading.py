@@ -8,8 +8,8 @@ from torch import nn
 from src.utils.logging import get_logger
 from src.utils.model_helpers import log_model_params
 
-from .dynamic_lora import apply_dynamic_loralib_lora, load_dynamic_lora_adapter
-from .loralib_lora import apply_loralib_lora, load_lora_adapter
+from src.continual.strategies.lora.dynamic.utils import apply_dynamic_loralib_lora, load_dynamic_lora_adapter
+from src.continual.strategies.lora.task_specific.utils import apply_loralib_lora, load_lora_adapter
 
 logger = get_logger(__name__)
 
@@ -51,24 +51,22 @@ def configure_loaded_lora_model(
                 bias=bias,
                 mark_trainable=False,
             )
-        return model
+    else:
 
-    logger.info("Using standard LoRA implementation")
+        logger.info("Using standard LoRA implementation")
 
-    model = apply_loralib_lora(
-        model,
-        lora_cfg,
-        mark_trainable=lora_adapter_path is None and mark_trainable,
-    )
-    if lora_adapter_path is not None:
-
-        model = load_lora_adapter(
+        model = apply_loralib_lora(
             model,
-            lora_adapter_path,
-            bias=bias,
-            mark_trainable=False,
+            lora_cfg,
+            mark_trainable=lora_adapter_path is None and mark_trainable,
         )
-    
-    log_model_params(model)
+        if lora_adapter_path is not None:
+
+            model = load_lora_adapter(
+                model,
+                lora_adapter_path,
+                bias=bias,
+                mark_trainable=False,
+            )
 
     return model

@@ -4,7 +4,7 @@ dataset:
   batch_size: 1
   patch_size: [192, 192, 192]
   seed: 42
-  train_max_cases: 2
+  train_max_cases: 8
   val_max_cases: 2
   test_max_cases: 2
 
@@ -27,7 +27,7 @@ training:
 
 continual:
   strategy: dynamic_lora
-  output_dir: ./experiments/continual/dynamic_lora
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/dynamic_lora
   from_scratch: false
   lora:
     rank: 8
@@ -50,9 +50,11 @@ continual:
       # Batch mode grows during training every N batches; task mode falls back to after_task.
       schedule:
         mode: batch
-        every_n_batches: 10
-        cooldown_batches: 10
+        every_n_batches: 1
+        cooldown_batches: 0
       entropy_threshold: 0.85
+      novelty_threshold: 1.0
+      novelty_min_samples: 5
       add_experts: 1
       # Only grow the highest-entropy modules and keep expansion local.
       max_modules_per_task: 2
@@ -61,12 +63,33 @@ continual:
         - self_attn
         - multihead_attn
   tasks:
+    - name: skm_tea_lateral_tibial
+      dataset:
+        name: skm_tea_lateral_tibial
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_medial_tibial
+      dataset:
+        name: skm_tea_medial_tibial
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_femoral
+      dataset:
+        name: skm_tea_femoral
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_patellar
+      dataset:
+        name: skm_tea_patellar
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_medial_meniscus
+      dataset:
+        name: skm_tea_medial_meniscus
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+  retention_tasks:
     - name: aeropath
       dataset:
         name: aeropath
-        root: ./data/AeroPath/
-
-    - name: fedbca_center2
-      dataset:
-        name: fedbca_center2
-        root: ./data/FedBCa/Center2/
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/AeroPath/

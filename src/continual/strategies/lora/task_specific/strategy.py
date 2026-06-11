@@ -4,11 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from src.continual.strategies.lora.loading import configure_loaded_lora_model
-from src.continual.strategies.lora.loralib_lora import save_lora_adapter
+from src.continual.strategies.lora.task_specific.utils import save_lora_adapter
 from src.continual.task_manager import ContinualTask, ContinualTaskManager
-
-from ..base import BaseContinualStrategy, EvaluationSpec
-from ..registry import register_strategy
+from src.continual.strategies.base import BaseContinualStrategy, EvaluationSpec
+from src.continual.strategies.registry import register_strategy
 
 
 @register_strategy
@@ -32,10 +31,10 @@ class LoRAStrategy(BaseContinualStrategy):
         )
 
     def configure_engine(self) -> None:
-        engine = self.require_engine()
+        self.engine = self.build_engine()
 
         self.logger.info("Applying LoRA adaptation to base model...")
-        engine.model = self.configure_loaded_model(engine.model, lora_cfg=self.task_manager.lora_cfg)
+        self.engine.model = self.configure_loaded_model(self.engine.model, lora_cfg=self.task_manager.lora_cfg)
         self.logger.info("LoRA adaptation complete. Model ready for continual learning.")
 
     def after_task(

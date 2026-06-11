@@ -102,6 +102,14 @@ class Trainer:
         masks = batch_item["masks"].to(self.device)
         loss = deep_supervision_loss(outputs, masks, weights=self.engine.ds_weights)
 
+        # if self.hooks is not None and hasattr(self.hooks, "compute_loss"):
+        #     loss = self.hooks.compute_loss(
+        #         task=self.task,
+        #         batch=batch_item,
+        #         outputs=outputs,
+        #         base_loss=loss,
+        #     )
+
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).float()
         dice = self.dice_metric(preds, masks)

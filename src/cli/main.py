@@ -23,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", required=True, help="Path to the YAML config file")
     parser.add_argument("--train_only", action="store_true", help="Run training only")
     parser.add_argument("--test_only", action="store_true", help="Run testing only")
+    parser.add_argument("--disable_adapters", action="store_true", help="Disable LoRA adapters")
     return parser
 
 
@@ -37,13 +38,13 @@ def run_train(config_path: str | Path) -> None:
     trainer.fit(datamodule)
 
 
-def run_test(config_path: str | Path) -> None:
+def run_test(config_path: str | Path, disable_adapters=False) -> None:
     logger.info("Loading evaluation config from %s", config_path)
     _, data_cfg, eval_cfg, model_cfg, dirs = load_run_config(config_path, "evaluation", subdirs=["logs"])
     logger.info("Experiment root: %s", dirs["root"])
 
     datamodule = VoxTellDataModule(data_cfg)
-    evaluator = Evaluator(model_cfg, eval_cfg)
+    evaluator = Evaluator(model_cfg, eval_cfg, disable_adapters=disable_adapters)
     evaluator.evaluate(datamodule)
 
 
@@ -90,7 +91,7 @@ def main() -> None:
     if args.train_only:
         run_train(args.config)
     elif args.test_only:
-        run_test(args.config)
+        run_test(args.config, disable_adapters=args.disable_adapters)
     else:
         run_train_then_test(args.config)
 

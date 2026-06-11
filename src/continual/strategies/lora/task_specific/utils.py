@@ -6,17 +6,31 @@ from typing import Any, Sequence
 import torch
 from torch import nn
 
-from src.continual.strategies.lora.loralib.utils import lora_state_dict, mark_only_lora_as_trainable
-from src.continual.strategies.lora.loralib.layers import LinearLoRA, PlainMultiheadAttentionLoRA
+from src.continual.strategies.lora.utils import lora_state_dict, _matches_target
+from src.continual.strategies.lora.task_specific.layers import LoRALayer, PlainMultiheadAttentionLoRA
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def _matches_target(full_name: str, target_modules: Sequence[str] | None) -> bool:
-    if not target_modules:
-        return True
-    return any(target in full_name for target in target_modules)
+def mark_only_lora_as_trainable(model: nn.Module, bias: str = 'none') -> None:
+    for n, p in model.named_parameters():
+        if 'lora_' not in n:
+            p.requires_grad = False
+    if bias == 'none':
+        return
+    elif bias == 'all':
+        for n, p in model.named_parameters():
+            if 'bias' in n:
+                p.requires_grad = True
+    elif bias == 'lora_only':
+        for m in model.modules():
+            if isinstance(m, LoRALayer) and \
+                hasattr(m, 'bias') and \
+                m.bias is not None:
+                    m.bias.requires_grad = True
+    else:
+        raise NotImplementedError
 
 
 def _replace_attention_modules(

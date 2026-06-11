@@ -9,7 +9,7 @@ from src.utils.logging import get_logger
 from src.utils.model_helpers import log_model_params
 
 from src.continual.strategies.lora.dynamic.utils import apply_dynamic_loralib_lora, load_dynamic_lora_adapter
-from src.continual.strategies.lora.task_specific.utils import apply_loralib_lora, load_lora_adapter
+from src.continual.strategies.lora.common.utils import apply_loralib_lora, load_lora_adapter
 
 logger = get_logger(__name__)
 

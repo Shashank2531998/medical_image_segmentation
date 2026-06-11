@@ -7,7 +7,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from src.continual.strategies.lora.task_specific import layers as lora_layers
+from src.continual.strategies.lora.common import layers as lora_layers
 
 
 class LoRAMultiheadAttention(nn.Module):

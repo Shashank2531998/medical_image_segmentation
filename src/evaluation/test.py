@@ -35,26 +35,35 @@ class Evaluator:
         )
         self.dice_metric = monai.metrics.DiceMetric(include_background=True, reduction="none", ignore_empty=False)
 
-        model_dir = self.model_cfg.get("dir", None)
         self.checkpoint_path = self.model_cfg.get("checkpoint_path", None)
-        lora_cfg = self.model_cfg.get("lora_cfg", None)
         self.lora_adapter_path = self.model_cfg.get("lora_adapter_path", None)
-        if model_dir is None:
-            raise ValueError("model_dir must be provided in model_cfg or as argument")
-        self.predictor = get_predictor(
-            model_dir,
-            self.device,
-            checkpoint_path=self.checkpoint_path,
-            lora_cfg=lora_cfg,
-            lora_adapter_path=self.lora_adapter_path,
-            disable_adapters=disable_adapters
-        )
+        self.disable_adapters = disable_adapters
+        self.predictor = None
+
+    def set_predictor(self):
+        if not self.predictor:
+            model_dir = self.model_cfg.get("dir", None)
+            lora_cfg = self.model_cfg.get("lora_cfg", None)
+
+            if model_dir is None:
+                raise ValueError("model_dir must be provided in model_cfg or as argument")
+            
+            self.predictor = get_predictor(
+                model_dir,
+                self.device,
+                checkpoint_path=self.checkpoint_path,
+                lora_cfg=lora_cfg,
+                lora_adapter_path=self.lora_adapter_path,
+                disable_adapters=self.disable_adapters
+            )
 
     @torch.no_grad()
     def evaluate(self, datamodule):
         """
         Runs full validation / evaluation loop.
         """
+
+        self.set_predictor()
 
         test_loader = datamodule.test_dataloader()
 

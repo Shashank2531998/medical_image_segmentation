@@ -166,7 +166,8 @@ class BaseContinualStrategy(ABC):
         return VoxTellEngine(self.base_model_cfg)
 
     def configure_engine(self) -> None:
-        return None
+        self.engine = self.require_engine()
+        self.engine.model.train()
 
     def on_train_batch_end(
         self,

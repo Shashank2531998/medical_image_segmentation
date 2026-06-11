@@ -8,21 +8,24 @@ from src.continual.strategies.lora.common.utils import save_lora_adapter
 from src.continual.task_manager import ContinualTask, ContinualTaskManager
 from src.continual.strategies.base import BaseContinualStrategy, EvaluationSpec
 from src.continual.strategies.registry import register_strategy
+from src.engine.model_engine import VoxTellEngine
 
 
 @register_strategy
-class LoRAStrategy(BaseContinualStrategy):
-    strategy_name = "lora"
+class SharedLoRAStrategy(BaseContinualStrategy):
+    strategy_name = "shared_lora"
 
-    def configure_engine(self) -> None:
-        self.engine = self.build_engine()
-
-        self.logger.info("Applying LoRA adaptation to base model...")
-        self.engine.model = configure_loaded_lora_model(
-            self.engine.model,
+    def build_engine(self) -> VoxTellEngine:
+        engine = super().build_engine()
+        
+        self.logger.info("Applying Shared LoRA adaptation to base model...")
+        engine.model = configure_loaded_lora_model(
+            engine.model,
             lora_cfg=self.task_manager.lora_cfg
         )
-        self.logger.info("LoRA adaptation complete. Model ready for continual learning.")
+        self.logger.info("Shared LoRA adaptation complete. Model ready for continual learning.")
+
+        return engine
 
     def after_task(
         self,
@@ -34,7 +37,7 @@ class LoRAStrategy(BaseContinualStrategy):
         engine = self.require_engine()
         lora_bias = str(self.task_manager.lora_cfg.get("bias", "none"))
         save_lora_adapter(engine.model, task_dir / "lora_adapter.pt", bias=lora_bias)
-        self.logger.info("Saved LoRA adapter for task %s", task.name)
+        self.logger.info("Saved Shared LoRA adapter for task %s", task.name)
 
     @classmethod
     def build_evaluation_spec(
@@ -59,7 +62,7 @@ class LoRAStrategy(BaseContinualStrategy):
         )
 
 
-def run_lora_strategy(
+def run_shared_lora_strategy(
     *,
     cfg: dict[str, Any],
     task_manager: ContinualTaskManager,
@@ -67,7 +70,7 @@ def run_lora_strategy(
     dirs: dict[str, Path],
     logger,
 ) -> None:
-    LoRAStrategy(
+    SharedLoRAStrategy(
         cfg=cfg,
         task_manager=task_manager,
         tasks=tasks,

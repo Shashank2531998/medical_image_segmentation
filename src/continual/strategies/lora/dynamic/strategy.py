@@ -95,7 +95,6 @@ class DynamicLoRAStrategy(BaseContinualStrategy):
         self.lora_adapter_path = None
         self.novelty_tracker = MahalanobisNoveltyTracker(module_name=self.strategy_name)
 
-    @classmethod
     def configure_loaded_model(
         cls,
         model,
@@ -118,7 +117,7 @@ class DynamicLoRAStrategy(BaseContinualStrategy):
         engine = super().build_engine()
         
         self.logger.info("Applying dynamic LoRA adaptation to base model...")
-        engine.model = self.__class__.configure_loaded_model(
+        engine.model = self.configure_loaded_model(
             engine.model, lora_cfg=self.task_manager.lora_cfg,
             lora_adapter_path=self.lora_adapter_path
         )

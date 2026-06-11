@@ -4,9 +4,6 @@ dataset:
   batch_size: 1
   patch_size: [192, 192, 192]
   seed: 42
-  train_max_cases: 2
-  val_max_cases: 2
-  test_max_cases: 2
 
 model:
   dir: ./models/voxtell_v1.1
@@ -15,7 +12,7 @@ model:
   reinit_weights: false
 
 training:
-  epochs: 2
+  epochs: 10
   seed: 42
   use_deterministic_algorithms: true
   optimizer:
@@ -27,7 +24,7 @@ training:
 
 continual:
   strategy: shared_lora
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora/dry_run
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora
   from_scratch: false
   lora:
     rank: 8
@@ -41,6 +38,15 @@ continual:
     attn_parts: [q, k, v, o]
     bias: none
   tasks:
+    - name: skm_tea_lateral_tibial
+      dataset:
+        name: skm_tea_lateral_tibial
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_medial_tibial
+      dataset:
+        name: skm_tea_medial_tibial
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
     - name: skm_tea_femoral
       dataset:
@@ -50,6 +56,11 @@ continual:
     - name: skm_tea_patellar
       dataset:
         name: skm_tea_patellar
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_medial_meniscus
+      dataset:
+        name: skm_tea_medial_meniscus
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
   retention_tasks:

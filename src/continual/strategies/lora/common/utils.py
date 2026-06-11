@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from src.continual.strategies.lora.utils import lora_state_dict, _matches_target
-from src.continual.strategies.lora.task_specific.layers import LoRALayer, PlainMultiheadAttentionLoRA
+from src.continual.strategies.lora.common.layers import LoRALayer, PlainMultiheadAttentionLoRA
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

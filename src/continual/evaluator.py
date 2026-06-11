@@ -9,7 +9,7 @@ import pandas as pd
 
 from src.continual.metrics import compute_all_metrics
 from src.continual.task_manager import ContinualTaskManager, merge_dicts
-from src.continual.strategies import get_strategy_class
+from src.continual.strategies.registry import get_strategy_class
 from src.data.datamodule import VoxTellDataModule
 from src.evaluation.test import Evaluator
 from src.utils.config import load_config

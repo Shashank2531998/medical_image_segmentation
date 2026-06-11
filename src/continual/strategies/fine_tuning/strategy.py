@@ -5,8 +5,8 @@ from typing import Any
 
 from src.continual.task_manager import ContinualTask, ContinualTaskManager
 
-from ..base import BaseContinualStrategy
-from ..registry import register_strategy
+from src.continual.strategies.base import BaseContinualStrategy
+from src.continual.strategies.registry import register_strategy
 
 
 @register_strategy

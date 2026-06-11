@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .base import BaseContinualStrategy
+from src.continual.strategies.base import BaseContinualStrategy
 
 
 StrategyType = type[BaseContinualStrategy]

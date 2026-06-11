@@ -12,8 +12,8 @@ from nnunetv2.utilities.helpers import dummy_context
 from src.data.preprocess import preprocess_image
 from src.inference.postprocessing import logits_to_segmentation
 from src.inference.sliding_window import SlidingWindowInferer
-from src.model.builder import load_voxtell_model
-from src.text.encoder import TextPromptEncoder
+from src.model.voxtell.builder import load_voxtell_model
+from src.model.voxtell.text.encoder import TextPromptEncoder
 from src.utils.model_helpers import log_model_params, set_adapters_enabled
 from src.utils.reorientation import reorient_seg_from_props
 from src.utils.logging import get_logger

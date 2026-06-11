@@ -2,8 +2,8 @@ from pathlib import Path
 
 import torch
 
-from src.model.builder import load_voxtell_model
-from src.text.encoder import TextPromptEncoder
+from src.model.voxtell.builder import load_voxtell_model
+from src.model.voxtell.text.encoder import TextPromptEncoder
 from src.utils.logging import get_logger
 from src.utils.model_helpers import log_model_params
 

@@ -6,8 +6,8 @@ from typing import Any
 from src.continual.task_manager import ContinualTask, ContinualTaskManager
 from src.utils.logging import get_logger
 
-from . import strategies as _strategy_registry  # noqa: F401
-from .strategies.registry import create_strategy
+from src.continual import strategies as _strategy_registry  # noqa: F401
+from src.continual.strategies.registry import create_strategy
 
 
 logger = get_logger(__name__)

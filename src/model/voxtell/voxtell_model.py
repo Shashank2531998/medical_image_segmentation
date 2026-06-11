@@ -13,7 +13,7 @@ from dynamic_network_architectures.initialization.weight_init import InitWeights
 from einops import rearrange, repeat
 from positional_encodings.torch_encodings import PositionalEncoding3D
 
-from src.model.transformer import TransformerDecoder, TransformerDecoderLayer
+from src.model.voxtell.transformer import TransformerDecoder, TransformerDecoderLayer
 
 
 class VoxTellModel(nn.Module):

@@ -8,9 +8,7 @@ import torch
 from batchgenerators.utilities.file_and_folder_operations import join, load_json
 from torch._dynamo import OptimizedModule
 
-from src.continual.strategies.lora.loading import configure_loaded_lora_model
-from src.model.voxtell_model import VoxTellModel
-from src.utils.model_helpers import log_model_params
+from src.model.voxtell.voxtell_model import VoxTellModel
 
 from src.utils.logging import get_logger
 
@@ -75,6 +73,7 @@ def load_voxtell_model(
     target_network.load_state_dict(checkpoint["network_weights"])
 
     if lora_cfg is not None:
+        from src.continual.strategies.lora.loading import configure_loaded_lora_model
         target_network = configure_loaded_lora_model(
             target_network,
             lora_cfg=lora_cfg,

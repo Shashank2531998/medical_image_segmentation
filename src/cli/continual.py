@@ -6,7 +6,7 @@ from src.cli.common import set_offline_mode
 
 set_offline_mode()
 
-from src.continual import ContinualTaskManager
+from src.continual.task_manager import ContinualTaskManager
 from src.continual.evaluator import evaluate_continual_experiment
 from src.continual.runner import run_continual_strategy
 from src.utils.config import load_config, save_config_snapshot

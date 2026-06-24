@@ -32,7 +32,6 @@ continual:
     dropout: 0.05
     # Restrict LoRA to TransformerDecoderLayer attention modules only.
     target_modules:
-      - self_attn
       - multihead_attn
     # Attention projections to adapt: q, k, v, o.
     attn_parts: [q, k, v, o]

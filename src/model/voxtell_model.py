@@ -204,7 +204,8 @@ class VoxTellModel(nn.Module):
     def forward(
         self,
         img: torch.Tensor,
-        text_embedding: torch.Tensor = None
+        text_embedding: torch.Tensor = None,
+        return_features = False
     ) -> Union[torch.Tensor, List[torch.Tensor]]:
         """
         Forward pass through VoxTell model.
@@ -269,7 +270,7 @@ class VoxTellModel(nn.Module):
         if not self.deep_supervision:
             outs = outs[0]
 
-        return outs
+        return (outs, mask_embeddings, skips) if return_features else outs
 
     @staticmethod
     def initialize(module):

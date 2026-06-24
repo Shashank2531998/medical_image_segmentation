@@ -40,7 +40,6 @@ continual:
     max_experts: 6
     # Restrict LoRA to TransformerDecoderLayer attention modules only.
     target_modules:
-      - self_attn
       - multihead_attn
     # Attention projections to adapt: q, k, v, o.
     attn_parts: [q, k, v, o]
@@ -60,7 +59,6 @@ continual:
       max_modules_per_task: 2
       locations:
         - transformer_decoder.layers
-        - self_attn
         - multihead_attn
   tasks:
     - name: skm_tea_lateral_tibial

@@ -112,7 +112,7 @@ def apply_dynamic_loralib_lora(
 ) -> nn.Module:
     if target_modules is None:
         target_modules = tuple(
-            lora_cfg.get("target_modules", ["transformer_decoder.layers", "self_attn", "multihead_attn"])
+            lora_cfg.get("target_modules", ["transformer_decoder.layers", "multihead_attn"])
         )
 
     logger.info(

@@ -8,6 +8,7 @@ import torch
 from batchgenerators.utilities.file_and_folder_operations import join, load_json
 from torch._dynamo import OptimizedModule
 
+from src.continual.strategies.cpe_clip.model import CPECLIPPromptedVoxTell, configure_loaded_cpe_clip_model
 from src.continual.strategies.lora.loading import configure_loaded_lora_model
 from src.model.voxtell_model import VoxTellModel
 from src.utils.model_helpers import log_model_params
@@ -33,6 +34,7 @@ def load_voxtell_model(
     checkpoint_path: str | Path = None,
     lora_cfg: dict | None = None,
     lora_adapter_path: str | Path | None = None,
+    cpe_clip_cfg: dict | None = None,
 ) -> tuple[VoxTellModel, Tuple[int, ...]]:
     
     logger.info("Loading VoxTell model from %s", checkpoint_path if checkpoint_path else model_dir)
@@ -67,12 +69,17 @@ def load_voxtell_model(
         weights_only=False,
     )
 
-    if isinstance(network, OptimizedModule):
-        target_network = network._orig_mod
-    else:
-        target_network = network
+    target_network = network._orig_mod if isinstance(network, OptimizedModule) else network
 
-    target_network.load_state_dict(checkpoint["network_weights"])
+    if cpe_clip_cfg is not None:
+        target_network = configure_loaded_cpe_clip_model(
+            network,
+            cpe_clip_cfg,
+            mark_trainable=bool(cpe_clip_cfg.get("trainable", True)),
+        )
+
+    state_dict = checkpoint["network_weights"]
+    target_network.load_state_dict(state_dict)
 
     if lora_cfg is not None:
         target_network = configure_loaded_lora_model(
@@ -83,6 +90,7 @@ def load_voxtell_model(
         )
 
     if reinit_weights:
+        logger.warning("Reinitializing model weights after checkpoint load")
         network.apply(VoxTellModel.initialize)
     
     return network, patch_size

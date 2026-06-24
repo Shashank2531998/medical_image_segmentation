@@ -87,7 +87,6 @@ def apply_loralib_lora(
                 "target_modules",
                 [
                     "transformer_decoder.layers",
-                    "self_attn",
                     "multihead_attn",
                 ],
             )

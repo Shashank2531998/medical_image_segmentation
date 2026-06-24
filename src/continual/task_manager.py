@@ -50,6 +50,10 @@ class ContinualTaskManager:
     def lora_cfg(self) -> dict[str, Any]:
         return dict(self.continual_cfg.get("lora", {}))
 
+    @property
+    def cpe_clip_cfg(self) -> dict[str, Any]:
+        return dict(self.continual_cfg.get("cpe_clip", {}))
+
     def _build_tasks(self, raw_tasks: list[dict[str, Any]], *, is_retention: bool = False) -> list[ContinualTask]:
         tasks: list[ContinualTask] = []
         for index, task_cfg in enumerate(raw_tasks):

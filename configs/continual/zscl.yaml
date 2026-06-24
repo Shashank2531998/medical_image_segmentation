@@ -15,7 +15,7 @@ model:
   reinit_weights: false
 
 training:
-  epochs: 1
+  epochs: 2
   seed: 42
   use_deterministic_algorithms: true
   optimizer:

@@ -43,6 +43,7 @@ class VoxTellPredictor:
     def __init__(self, model_dir: str, device: torch.device = torch.device('cuda'),
                  text_encoding_model: str = 'Qwen/Qwen3-Embedding-4B', checkpoint_path: str | Path = None,
                  lora_cfg: dict | None = None, lora_adapter_path: str | Path | None = None,
+                 cpe_clip_cfg: dict | None = None,
                  disable_adapters = False
                  ) -> None:
         """
@@ -73,6 +74,7 @@ class VoxTellPredictor:
             checkpoint_path=checkpoint_path,
             lora_cfg=lora_cfg,
             lora_adapter_path=lora_adapter_path,
+            cpe_clip_cfg=cpe_clip_cfg,
         )
         
         # Setting it to eval mode
@@ -293,7 +295,7 @@ def predict_image(
     return segmentations
 
 
-def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_adapter_path=None, disable_adapters=False):
+def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_adapter_path=None, cpe_clip_cfg=None, disable_adapters=False):
     model_path = Path(model_path)
 
     if not (model_path / "plans.json").exists():
@@ -307,5 +309,6 @@ def get_predictor(model_path, device, checkpoint_path=None, lora_cfg=None, lora_
         checkpoint_path=checkpoint_path,
         lora_cfg=lora_cfg,
         lora_adapter_path=lora_adapter_path,
+        cpe_clip_cfg=cpe_clip_cfg,
         disable_adapters=disable_adapters
     )

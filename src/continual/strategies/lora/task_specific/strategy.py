@@ -16,13 +16,10 @@ class LoRAStrategy(BaseContinualStrategy):
 
     def configure_engine(self) -> None:
         self.engine = self.build_engine()
-
-        self.logger.info("Applying LoRA adaptation to base model...")
         self.engine.model = configure_loaded_lora_model(
             self.engine.model,
             lora_cfg=self.task_manager.lora_cfg
         )
-        self.logger.info("LoRA adaptation complete. Model ready for continual learning.")
 
     def after_task(
         self,

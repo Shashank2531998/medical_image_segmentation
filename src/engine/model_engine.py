@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 class VoxTellEngine:
 
-    def __init__(self, model_cfg: dict | None = None, device: str = "cuda"):
+    def __init__(self, model_cfg: dict | None = None, return_features = False):
         self.model_cfg = model_cfg
         self.device = torch.device(self.model_cfg.get("device", "cuda") if torch.cuda.is_available() else "cpu")
         logger.info("VoxTellEngine initialized | device=%s", self.device)
@@ -22,6 +22,7 @@ class VoxTellEngine:
             device=self.device,
         )
         self.ds_weights = self.model_cfg.get("deep_supervision_weights", [1, 0.5, 0.25, 0.125, 0.0625])
+        self.return_features = return_features
         self.load_model()
 
     def load_model(self):
@@ -35,7 +36,8 @@ class VoxTellEngine:
             deep_supervision=self.model_cfg.get("deep_supervision", False),
             model_overrides=self.model_cfg,
             reinit_weights=self.model_cfg.get("reinit_weights", False),
-            checkpoint_path=self.model_cfg.get("checkpoint_path", None)
+            checkpoint_path=self.model_cfg.get("checkpoint_path", None),
+            cpe_clip_cfg=self.model_cfg.get("cpe_clip_cfg", None),
         )
         self.model = model.to(self.device)
         
@@ -52,5 +54,5 @@ class VoxTellEngine:
         # At a patch level -
         # outputs will have length equal to 5, if deep supervision is enabled, otherwise 1 (e.g. - (5, 1, 3, 192, 192, 192))
         # For each sample of the batch, there will be 3 masks, 2 for positive and 1 for negative (e.g. - (1, 3, 192, 192, 192))
-        outputs = self.model(imgs, text_embeddings)
+        outputs = self.model(imgs, text_embeddings, return_features=self.return_features)
         return outputs

@@ -99,18 +99,23 @@ class Trainer:
 
         outputs = self.engine.forward(batch_item)
 
+        if self.engine.return_features:
+            out_logits, mask_embedding, img_feature = outputs
+        else:
+            out_logits = outputs
+
         masks = batch_item["masks"].to(self.device)
-        loss = deep_supervision_loss(outputs, masks, weights=self.engine.ds_weights)
+        loss = deep_supervision_loss(out_logits, masks, weights=self.engine.ds_weights)
 
-        # if self.hooks is not None and hasattr(self.hooks, "compute_loss"):
-        #     loss = self.hooks.compute_loss(
-        #         task=self.task,
-        #         batch=batch_item,
-        #         outputs=outputs,
-        #         base_loss=loss,
-        #     )
+        if self.hooks is not None and hasattr(self.hooks, "compute_loss"):
+            loss = self.hooks.compute_loss(
+                task=self.task,
+                batch=batch_item,
+                outputs=outputs,
+                base_loss=loss,
+            )
 
-        probs = torch.sigmoid(outputs)
+        probs = torch.sigmoid(out_logits)
         preds = (probs > 0.5).float()
         dice = self.dice_metric(preds, masks)
         dice = torch.nan_to_num(dice, nan=0.0)
@@ -125,7 +130,7 @@ class Trainer:
         self.optimizer.zero_grad()
 
         if self.debug_save_artifacts and batch_idx % self.debug_save_interval == 0:
-            self._save_debug_artifacts(batch_item, outputs, epoch, batch_idx, self.debug_dir)
+            self._save_debug_artifacts(batch_item, out_logits, epoch, batch_idx, self.debug_dir)
             
         loss.backward()
         self.optimizer.step()
@@ -318,7 +323,13 @@ class Trainer:
                 for batch in val_loader:
                     masks = batch["masks"].to(self.device)
                     outputs = self.engine.forward(batch)
-                    loss = deep_supervision_loss(outputs, masks, weights=self.engine.ds_weights)
+
+                    if self.engine.return_features:
+                        out_logits, mask_embedding, img_feature = outputs
+                    else:
+                        out_logits = outputs
+
+                    loss = deep_supervision_loss(out_logits, masks, weights=self.engine.ds_weights)
                     total_val_loss += float(loss.item())
 
             val_loss = total_val_loss / len(val_loader)

@@ -44,15 +44,16 @@ class Evaluator:
         if not self.predictor:
             model_dir = self.model_cfg.get("dir", None)
             lora_cfg = self.model_cfg.get("lora_cfg", None)
-
+            cpe_clip_cfg = self.model_cfg.get("cpe_clip_cfg", None)
             if model_dir is None:
                 raise ValueError("model_dir must be provided in model_cfg or as argument")
-            
+
             self.predictor = get_predictor(
                 model_dir,
                 self.device,
                 checkpoint_path=self.checkpoint_path,
                 lora_cfg=lora_cfg,
+                cpe_clip_cfg=cpe_clip_cfg,
                 lora_adapter_path=self.lora_adapter_path,
                 disable_adapters=self.disable_adapters
             )
@@ -67,8 +68,12 @@ class Evaluator:
 
         test_loader = datamodule.test_dataloader()
 
+        cpe_clip_cfg = self.model_cfg.get("cpe_clip_cfg", None)
         self.logger.info(
-            f"Model Checkpoint: {self.checkpoint_path} | LoRA Adapter Path: {self.lora_adapter_path}"
+            "Model load | ckpt=%s | lora=%s | cpe_clip_active=%s",
+            self.checkpoint_path,
+            self.lora_adapter_path,
+            True if cpe_clip_cfg else False,
         )
 
         self.logger.info(

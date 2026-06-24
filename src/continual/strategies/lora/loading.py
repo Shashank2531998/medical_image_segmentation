@@ -51,6 +51,8 @@ def configure_loaded_lora_model(
                 bias=bias,
                 mark_trainable=False,
             )
+        
+        logger.info("Dynamic LoRA adaptation complete")
     else:
 
         logger.info("Using standard LoRA implementation")
@@ -68,5 +70,7 @@ def configure_loaded_lora_model(
                 bias=bias,
                 mark_trainable=False,
             )
+
+        logger.info("LoRA adaptation complete")
 
     return model

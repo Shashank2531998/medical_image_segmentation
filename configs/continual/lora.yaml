@@ -24,7 +24,7 @@ training:
 
 continual:
   strategy: lora
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora/task_specific
   from_scratch: false
   lora:
     rank: 8
@@ -33,8 +33,7 @@ continual:
     # Restrict LoRA to TransformerDecoderLayer attention modules only.
     target_modules:
       - multihead_attn
-    # Attention projections to adapt: q, k, v, o.
-    attn_parts: [q, k, v, o]
+    attn_parts: [q, v]
     bias: none
   tasks:
     - name: skm_tea_lateral_tibial

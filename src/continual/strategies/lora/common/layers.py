@@ -179,14 +179,11 @@ class LinearLoRA(nn.Linear, LoRALayer):
             self.dropout = nn.Dropout(dropout_rate)
         else:
             self.dropout = None
-        
-        self.adapter_enabled = True
 
     def train(self, mode: bool = True):
         super().train(mode)     
         self.lora_train(mode)
-
-        
+    
     def forward(self, x: torch.Tensor, **kwargs):
         
         if self.dropout is None: # do as before
@@ -200,9 +197,6 @@ class LinearLoRA(nn.Linear, LoRALayer):
             
         # Compute the original linear transformation
         original_output = nn.Linear.forward(self, x)
-
-        if not self.adapter_enabled:
-            return original_output
 
         if self.training and self.dropout.p > 0:
             x = self.dropout(x)

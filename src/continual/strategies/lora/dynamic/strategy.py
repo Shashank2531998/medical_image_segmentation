@@ -82,7 +82,6 @@ class MahalanobisNoveltyTracker:
         return mean_distance + self.threshold_scale * std_distance
 
 
-@register_strategy
 class DynamicLoRAStrategy(BaseContinualStrategy):
     strategy_name = "dynamic_lora"
 

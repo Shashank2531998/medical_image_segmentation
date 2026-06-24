@@ -104,6 +104,7 @@ class CPECLIPTransformerDecoder(nn.Module):
 
         initial_memory = memory
         initial_mem_pos = pos
+        device = initial_memory.device
         
         for layer_idx, layer in enumerate(self.layers):
 
@@ -113,15 +114,15 @@ class CPECLIPTransformerDecoder(nn.Module):
                     layer_g
                     .unsqueeze(1)                          # [P,1,C]
                     .expand(-1, B, -1)                     # [P,B,C]
-                ).to(initial_memory.device)
+                ).to(device)
                 mem_pos = torch.zeros_like(vision_prompt, device=pos.device)
 
                 if self.method == "replacement":
                     memory = torch.cat([initial_memory, vision_prompt], dim=0)
-                    pos = torch.cat([initial_mem_pos, mem_pos], dim=0) if pos else None
+                    pos = torch.cat([initial_mem_pos, mem_pos], dim=0) if pos is not None else None
                 elif self.method == "accumulate_same":
                     memory = torch.cat([memory, vision_prompt], dim=0)
-                    pos = torch.cat([pos, mem_pos],dim=0) if pos else None
+                    pos = torch.cat([pos, mem_pos],dim=0) if pos is not None else None
 
                 if self.text_prompting:
                     # Global image summary
@@ -130,13 +131,11 @@ class CPECLIPTransformerDecoder(nn.Module):
                     global_feat = global_feat.unsqueeze(1).expand(
                         -1, q.shape[1], -1
                     )                                               # [B, T, C]
-                    delta_q = self.meta_net(
+                    delta_q = self.meta_net.to(device)(
                         torch.cat([q, global_feat], dim=-1)         # [B, T, 2*C]
                     )                                               # [B, T, C]
                     delta_q = delta_q.permute(1,0,2)                # [T, B, C]                        
                     output = output + delta_q
-
-
 
             residual = True
             output, ws = layer(

@@ -26,16 +26,19 @@ training:
     nesterov: true
 
 continual:
-  strategy: cpe_clip
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/cpe_clip
+  strategy: lora
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora
   from_scratch: false
-  cpe_clip:
-    prompt_tokens: 4
-    prompt_layers: 3
-    regularization_method: balance
-    alpha_base: 1.0
-    alpha_floor: 0.25
-    prompt_init_std: 0.02
+  lora:
+    rank: 8
+    alpha: 16
+    dropout: 0.05
+    # Restrict LoRA to TransformerDecoderLayer attention modules only.
+    target_modules:
+      - multihead_attn
+    # Attention projections to adapt: q, k, v, o.
+    attn_parts: [q, k, v, o]
+    bias: none
   tasks:
     - name: skm_tea_femoral
       dataset:

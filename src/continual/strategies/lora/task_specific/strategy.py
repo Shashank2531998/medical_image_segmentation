@@ -42,10 +42,23 @@ class LoRAStrategy(BaseContinualStrategy):
         task_dir: Path,
         trained_model_cfg: dict[str, Any],
         checkpoint_name: str,
+        evaluation_task: ContinualTask | None = None,
     ) -> EvaluationSpec:
-        adapter_path = task_dir / "lora_adapter.pt"
+        adapter_task = task
+
+        if evaluation_task.is_retention:
+            return EvaluationSpec(model_cfg=trained_model_cfg)
+
+        if (
+            evaluation_task is not None
+            and evaluation_task.index <= task.index
+        ):
+            adapter_task = evaluation_task
+
+        adapter_task_dir = task_dir.parent.parent / "tasks" / task_manager.task_dir_name(adapter_task)
+        adapter_path = adapter_task_dir / "lora_adapter.pt"
         if not adapter_path.exists():
-            raise FileNotFoundError(f"Expected LoRA adapter for task {task.name} at {adapter_path}")
+            raise FileNotFoundError(f"Expected LoRA adapter at {adapter_path}")
 
         return EvaluationSpec(
             model_cfg={

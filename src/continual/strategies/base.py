@@ -4,6 +4,7 @@ from abc import ABC
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+import random
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ class BaseContinualStrategy(ABC):
         self.base_model_cfg = build_base_model_cfg(task_manager, tasks)
         self.engine: VoxTellEngine | None = None
         self.state_path = self.dirs["root"] / "continual_state.json"
+        self.replay_memory: list[dict[str, Any]] = []
 
     def _timestamp(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -102,6 +104,72 @@ class BaseContinualStrategy(ABC):
 
         return start_index, checkpoint_path
 
+    def _replay_memory_cfg(self) -> dict[str, Any]:
+        replay_cfg = self.cfg.get("continual", {}).get("replay_memory", {})
+        return replay_cfg if isinstance(replay_cfg, dict) else {}
+
+    def _should_use_replay_memory(self) -> bool:
+        return bool(self._replay_memory_cfg().get("enabled", False))
+
+    def _replay_fraction(self) -> float:
+        return float(self._replay_memory_cfg().get("fraction", 0.0))
+
+    def _sample_replay_items(self, train_samples: list[Any]) -> list[Any]:
+        if not train_samples:
+            return []
+
+        fraction = self._replay_fraction()
+        if fraction <= 0:
+            return []
+
+        keep_count = max(1, int(round(len(train_samples) * fraction)))
+        keep_count = min(keep_count, len(train_samples))
+        return random.sample(train_samples, keep_count)
+
+    def _trim_replay_memory(self) -> None:
+        max_size = self._replay_memory_cfg().get("max_size")
+        if max_size is not None:
+            max_size = int(max_size)
+            if max_size > 0 and len(self.replay_memory) > max_size:
+                self.replay_memory = self.replay_memory[-max_size:]
+
+    def _initialize_replay_memory(self) -> None:
+        if not self._should_use_replay_memory():
+            return
+
+        retention_tasks = self.task_manager.retention_tasks()
+        if not retention_tasks:
+            return
+
+        for task in retention_tasks:
+            datamodule = VoxTellDataModule(task.dataset_cfg)
+            sampled = self._sample_replay_items(list(getattr(datamodule, "train_samples", []) or []))
+            if sampled:
+                self.replay_memory.extend(sampled)
+
+        self._trim_replay_memory()
+
+        if self.replay_memory:
+            self.logger.info(
+                "Initialized replay memory from %d retention-task samples",
+                len(self.replay_memory),
+            )
+
+    def _update_replay_memory(self, datamodule: VoxTellDataModule) -> None:
+        if not self._should_use_replay_memory():
+            return
+
+        sampled = self._sample_replay_items(list(getattr(datamodule, "train_samples", []) or []))
+        if sampled:
+            self.replay_memory.extend(sampled)
+        self._trim_replay_memory()
+
+    def _build_task_dataset_cfg(self, task: ContinualTask) -> dict[str, Any]:
+        dataset_cfg = dict(task.dataset_cfg)
+        if self._should_use_replay_memory() and self.replay_memory:
+            dataset_cfg["replay_train_samples"] = list(self.replay_memory)
+        return dataset_cfg
+
     def run(self) -> None:
         state = self._load_state()
         start_task_index, resume_checkpoint = self._resolve_resume_plan(state)
@@ -117,6 +185,7 @@ class BaseContinualStrategy(ABC):
             str(resume_checkpoint) if resume_checkpoint else "<none>",
         )
 
+        self._initialize_replay_memory()
         self.engine = self.build_engine()
 
         for task in self.tasks[start_task_index:]:
@@ -141,12 +210,22 @@ class BaseContinualStrategy(ABC):
                 state["current_checkpoint"] = None
             self._save_state(state)
 
-            datamodule = VoxTellDataModule(task.dataset_cfg)
+            task_datamodule = VoxTellDataModule(task.dataset_cfg)
+            datamodule = VoxTellDataModule(self._build_task_dataset_cfg(task))
             trainer = Trainer(self.engine, task_training_cfg, hooks=self, task=task)
             self.logger.info("Training task %d/%d: %s", task.index + 1, len(self.tasks), task.name)
             task_resume_checkpoint = resume_checkpoint if task.index == start_task_index else None
             task_metrics = trainer.fit(datamodule, resume_from=task_resume_checkpoint)
             self.logger.info("Task %s training completed", task.name)
+
+            self._update_replay_memory(task_datamodule)
+            if self._should_use_replay_memory() and self.replay_memory:
+                self.logger.info(
+                    "Replay memory size after task %s: %d samples (fraction=%.3f)",
+                    task.name,
+                    len(self.replay_memory),
+                    self._replay_fraction(),
+                )
 
             completed = {int(i) for i in state.get("completed_tasks", [])}
             completed.add(task.index)
@@ -227,6 +306,7 @@ class BaseContinualStrategy(ABC):
         task_dir: Path,
         trained_model_cfg: dict[str, Any],
         checkpoint_name: str,
+        evaluation_task: ContinualTask | None = None,
     ) -> EvaluationSpec:
         return EvaluationSpec(
             model_cfg={

@@ -4,9 +4,6 @@ dataset:
   batch_size: 1
   patch_size: [192, 192, 192]
   seed: 42
-  train_max_cases: 8
-  val_max_cases: 2
-  test_max_cases: 2
 
 model:
   dir: ./models/voxtell_v1.1
@@ -15,7 +12,7 @@ model:
   reinit_weights: false
 
 training:
-  epochs: 1
+  epochs: 10
   seed: 42
   use_deterministic_algorithms: true
   optimizer:
@@ -26,54 +23,27 @@ training:
     nesterov: true
 
 continual:
-  strategy: dynamic_lora
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/dry_run
+  strategy: shared_lora
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora/shared
   from_scratch: false
   lora:
-    rank: 8
-    alpha: 16
-    dropout: 0.05
-    # Sparse routing: execute only the top-k experts per forward pass.
-    router_top_k: 2
-    router_temperature: 1.0
-    initial_experts: 1
-    max_experts: 6
+    rank: 128
+    alpha: 32
+    dropout: 0.1
     # Restrict LoRA to TransformerDecoderLayer attention modules only.
     target_modules:
       - multihead_attn
-    # Attention projections to adapt: q, k, v, o.
     attn_parts: [q, v]
     bias: none
-    growth:
-      enabled: true
-      # Batch mode grows during training every N batches; task mode falls back to after_task.
-      schedule:
-        mode: batch
-        every_n_batches: 1
-        cooldown_batches: 0
-      entropy_threshold: 0.85
-      novelty_threshold: 1.0
-      novelty_min_samples: 5
-      add_experts: 1
-      # Only grow the highest-entropy modules and keep expansion local.
-      max_modules_per_task: 2
-      locations:
-        - transformer_decoder.layers
-        - multihead_attn
   tasks:
-    - name: skm_tea_lateral_tibial
+    - name: skm_tea_lateral_meniscus
       dataset:
-        name: skm_tea_lateral_tibial
+        name: skm_tea_lateral_meniscus
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
-    - name: skm_tea_medial_tibial
+    - name: skm_tea_medial_meniscus
       dataset:
-        name: skm_tea_medial_tibial
-        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
-
-    - name: skm_tea_femoral
-      dataset:
-        name: skm_tea_femoral
+        name: skm_tea_medial_meniscus
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
     - name: skm_tea_patellar
@@ -81,9 +51,19 @@ continual:
         name: skm_tea_patellar
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
-    - name: skm_tea_medial_meniscus
+    - name: skm_tea_femoral
       dataset:
-        name: skm_tea_medial_meniscus
+        name: skm_tea_femoral
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+    
+    - name: skm_tea_medial_tibial
+      dataset:
+        name: skm_tea_medial_tibial
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
+    - name: skm_tea_lateral_tibial
+      dataset:
+        name: skm_tea_lateral_tibial
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
   retention_tasks:

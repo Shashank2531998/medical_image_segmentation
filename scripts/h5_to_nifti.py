@@ -38,7 +38,18 @@ def convert_single(h5_path, img_dir, mask_dir, normalize=False):
     # -------------------------
     seg_labels = np.argmax(seg, axis=-1).astype(np.uint8)
 
+    # 1. Identify which pixels are entirely background (sum of channels == 0)
+    is_background = (np.sum(seg, axis=-1) == 0)
+    
+    # 2. Shift all anatomical labels up by 1 (so Patellar Cartilage = 1)
+    seg_labels = np.argmax(seg, axis=-1) + 1
+    
+    # 3. Override the background pixels to be exactly 0
+    seg_labels[is_background] = 0
+    seg_labels = seg_labels.astype(np.uint8)
+
     mask_nifti = nib.Nifti1Image(seg_labels, affine=np.eye(4))
+    
     nib.save(mask_nifti, mask_out)
 
     print(f"[DONE] {base_name}")
@@ -61,9 +72,9 @@ def convert_folder(h5_folder, img_dir, mask_dir, normalize=False):
 # -------------------------
 if __name__ == "__main__":
 
-    h5_path = "data/skm_tea/h5_img_files"
-    img_dir = "data/skm_tea/images"
-    mask_dir = "data/skm_tea/annotations"
+    h5_path = "/home/woody/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/h5_img_files"
+    img_dir = "/home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/images"
+    mask_dir = "/home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/annotations"
 
     convert_folder(
         h5_path,

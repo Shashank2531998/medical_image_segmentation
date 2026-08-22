@@ -91,9 +91,11 @@ def _replace_attention_modules(
 
             lora_modules = [lora_attn.q_proj, lora_attn.k_proj, lora_attn.v_proj, lora_attn.out_proj]
             _stats["total_experts"] += len(lora_attn.q_proj.experts)
-            _stats["router_params"] += sum(p.numel() for mod in lora_modules for p in mod.router.parameters())
             for mod in lora_modules:
-                for expert in mod.experts:
+                router = getattr(mod, "router", None)
+                if router is not None:
+                    _stats["router_params"] += sum(p.numel() for p in router.parameters())
+                for expert in getattr(mod, "experts", []):
                     _stats["expert_params"] += sum(p.numel() for p in expert.parameters() if p.requires_grad)
 
             logger.debug("Injected dynamic LoRA at '%s' (r=%d, experts=%d, attn_parts=%s)", full_name, rank, num_experts, enable_lora)

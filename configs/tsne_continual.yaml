@@ -7,33 +7,19 @@ dataset:
 
 model:
   dir: ./models/voxtell_v1.1
-  device: cuda
+  device: cpu
   deep_supervision: false
-  reinit_weights: false
 
-training:
-  epochs: 10
+tsne:
+  perplexity: 30.0
   seed: 42
-  use_deterministic_algorithms: true
-  optimizer:
-    lr: 0.0001
-    weight_decay: 0.00003
-    momentum: 0.99
-    poly_power: 1.0
-    nesterov: true
-
-continual:
-  strategy: cpe_clip
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/cpe_clip
-  from_scratch: false
-  cpe_clip:
-    prompt_tokens: 4
-    prompt_layers: 3
-    regularization_method: balance
-    alpha_base: 1.0
-    alpha_floor: 0.25
-    prompt_init_std: 0.02
-  tasks:
+  output: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/tsne/tsne_continual_stage0.png
+  n_samples: 1
+  split: test
+  embedding: mask
+  stage: 0
+  per_prompt: false
+  datasets:
     - name: skm_tea_medial_meniscus
       dataset:
         name: skm_tea_medial_meniscus
@@ -58,9 +44,3 @@ continual:
       dataset:
         name: skm_tea_lateral_tibial
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
-
-  retention_tasks:
-    - name: aeropath
-      dataset:
-        name: aeropath
-        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/AeroPath/

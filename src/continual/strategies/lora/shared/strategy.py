@@ -48,10 +48,11 @@ class SharedLoRAStrategy(BaseContinualStrategy):
         task_dir: Path,
         trained_model_cfg: dict[str, Any],
         checkpoint_name: str,
+        evaluation_task: ContinualTask | None = None,
     ) -> EvaluationSpec:
         adapter_path = task_dir / "lora_adapter.pt"
         if not adapter_path.exists():
-            raise FileNotFoundError(f"Expected LoRA adapter for task {task.name} at {adapter_path}")
+            raise FileNotFoundError(f"Expected LoRA adapter at {adapter_path}")
 
         return EvaluationSpec(
             model_cfg={

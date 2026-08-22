@@ -82,6 +82,7 @@ class MahalanobisNoveltyTracker:
         return mean_distance + self.threshold_scale * std_distance
 
 
+@register_strategy
 class DynamicLoRAStrategy(BaseContinualStrategy):
     strategy_name = "dynamic_lora"
 
@@ -365,10 +366,11 @@ class DynamicLoRAStrategy(BaseContinualStrategy):
         task_dir: Path,
         trained_model_cfg: dict[str, Any],
         checkpoint_name: str,
+        evaluation_task: ContinualTask | None = None,
     ) -> EvaluationSpec:
         adapter_path = task_dir / "lora_adapter.pt"
         if not adapter_path.exists():
-            raise FileNotFoundError(f"Expected dynamic LoRA adapter for task {task.name} at {adapter_path}")
+            raise FileNotFoundError(f"Expected dynamic LoRA adapter at {adapter_path}")
 
         return EvaluationSpec(
             model_cfg={

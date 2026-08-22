@@ -23,40 +23,27 @@ training:
     nesterov: true
 
 continual:
-  strategy: cpe_clip
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/cpe_clip
+  strategy: shared_lora
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/lora/shared
   from_scratch: false
-  cpe_clip:
-    prompt_tokens: 4
-    prompt_layers: 3
-    regularization_method: balance
-    alpha_base: 1.0
-    alpha_floor: 0.25
-    prompt_init_std: 0.02
+  lora:
+    rank: 128
+    alpha: 32
+    dropout: 0.1
+    # Restrict LoRA to TransformerDecoderLayer attention modules only.
+    target_modules:
+      - multihead_attn
+    attn_parts: [q, v]
+    bias: none
   tasks:
-    - name: skm_tea_medial_meniscus
-      dataset:
-        name: skm_tea_medial_meniscus
-        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
-
     - name: skm_tea_patellar
       dataset:
         name: skm_tea_patellar
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
-    - name: skm_tea_femoral
+    - name: skm_tea_medial_meniscus
       dataset:
-        name: skm_tea_femoral
-        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
-    
-    - name: skm_tea_medial_tibial
-      dataset:
-        name: skm_tea_medial_tibial
-        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
-
-    - name: skm_tea_lateral_tibial
-      dataset:
-        name: skm_tea_lateral_tibial
+        name: skm_tea_medial_meniscus
         root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
 
   retention_tasks:

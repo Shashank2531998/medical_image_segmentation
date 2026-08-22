@@ -37,6 +37,7 @@ class VoxTellDataModule:
         self.test_max_cases = cfg.get("test_max_cases")
         
         self.filter_img_list = cfg.get("filter_img_list")
+        self.replay_train_samples = list(cfg.get("replay_train_samples", []) or [])
 
         if not (self.train_root):
             raise ValueError("dataset.root must be provided")
@@ -81,6 +82,9 @@ class VoxTellDataModule:
             max_cases=self.test_max_cases,
             filter_img_list=self.filter_img_list,
         )
+
+        if self.replay_train_samples:
+            train_items = list(train_items) + list(self.replay_train_samples)
 
         return train_items, val_items, test_items
 

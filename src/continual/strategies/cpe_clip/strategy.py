@@ -72,6 +72,7 @@ class CPECLIPStrategy(BaseContinualStrategy):
         task_dir: Path,
         trained_model_cfg: dict[str, Any],
         checkpoint_name: str,
+        evaluation_task: ContinualTask | None = None,
     ) -> EvaluationSpec:
         cpe_cfg = dict(task_manager.cpe_clip_cfg)
         cpe_cfg["trainable"] = False

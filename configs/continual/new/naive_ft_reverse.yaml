@@ -23,17 +23,14 @@ training:
     nesterov: true
 
 continual:
-  strategy: cpe_clip
-  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/cpe_clip
+  output_dir: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/continual/full_fine_tuning
   from_scratch: false
-  cpe_clip:
-    prompt_tokens: 4
-    prompt_layers: 3
-    regularization_method: balance
-    alpha_base: 1.0
-    alpha_floor: 0.25
-    prompt_init_std: 0.02
-  tasks:
+  tasks:    
+    - name: skm_tea_lateral_meniscus
+      dataset:
+        name: skm_tea_lateral_meniscus
+        root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+
     - name: skm_tea_medial_meniscus
       dataset:
         name: skm_tea_medial_meniscus

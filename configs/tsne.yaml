@@ -1,0 +1,25 @@
+# Configuration for t-SNE visualisation
+
+dataset:
+  name: skm_tea_medial_meniscus
+  root: /home/vault/iwi5/iwi5326h/projects/VoxTell/data/skm_tea/
+  seed: 42
+  batch_size: 1
+  patch_size: [192, 192, 192]
+  train_fraction: 0.7
+  val_fraction: 0.15
+
+model:
+  dir: ./models/voxtell_v1.1
+  device: cuda
+  deep_supervision: false
+
+tsne:
+  split: test
+  n_samples: 1
+  embedding: mask   # choices: text | mask | encoder
+  stage: 0
+  per_prompt: false
+  perplexity: 30.0
+  seed: 42
+  output: /home/vault/iwi5/iwi5326h/projects/VoxTell/experiments/tsne/tsne_mask_stage0.png

@@ -4,6 +4,7 @@ dataset:
   batch_size: 1
   patch_size: [192, 192, 192]
   seed: 42
+  train_max_cases: 20
 
 model:
   dir: ./models/voxtell_v1.1

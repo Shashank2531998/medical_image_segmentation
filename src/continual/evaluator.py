@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from importlib import import_module
+
 from pathlib import Path
 import csv
 import json
@@ -17,6 +19,11 @@ from src.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
+
+def _load_builtin_strategies() -> None:
+    strategies_module = import_module("src.continual.strategies")
+    load_builtin_strategies = getattr(strategies_module, "load_builtin_strategies")
+    load_builtin_strategies()
 
 
 def _json_safe(value):
@@ -93,35 +100,36 @@ class ContinualExperimentEvaluator:
             self.task_manager.strategy,
         )
 
-    def build_model_evaluators(self) -> list[Evaluator]:
-        evaluators: list[Evaluator] = []
-        evaluators.append(
-            Evaluator(
+    def build_model_evaluator(self, training_task, evaluation_task) -> Evaluator:
+        if training_task is None:
+            return Evaluator(
                 model_cfg=self.pretrained_model_cfg,
-                eval_cfg={"output_dir": str(self.experiment_root / "tasks" / "pretrained" / "test")},
+                eval_cfg={
+                    "output_dir": str(
+                        self.experiment_root / "tasks" / "pretrained" / self.task_manager.task_dir_name(evaluation_task) / "test"
+                    )
+                },
             )
+
+        task_idx = self.training_tasks.index(training_task)
+        task_dir = self.experiment_root / "tasks" / self.task_manager.task_dir_name(training_task)
+        evaluation_spec = self.strategy_class.build_evaluation_spec(
+            task_manager=self.task_manager,
+            task=training_task,
+            task_dir=task_dir,
+            trained_model_cfg=self.trained_model_cfgs[task_idx],
+            checkpoint_name=self.checkpoint_name,
+            evaluation_task=evaluation_task,
+        )
+        output_dir = task_dir / self.task_manager.task_dir_name(evaluation_task) / "test"
+        return Evaluator(
+            model_cfg=evaluation_spec.model_cfg,
+            eval_cfg={"output_dir": str(output_dir), **evaluation_spec.eval_cfg},
         )
 
-        for task_idx, task in enumerate(self.training_tasks):
-            task_dir = self.experiment_root / "tasks" / self.task_manager.task_dir_name(task)
-            evaluation_spec = self.strategy_class.build_evaluation_spec(
-                task_manager=self.task_manager,
-                task=task,
-                task_dir=task_dir,
-                trained_model_cfg=self.trained_model_cfgs[task_idx],
-                checkpoint_name=self.checkpoint_name,
-            )
-            evaluators.append(
-                Evaluator(
-                    model_cfg=evaluation_spec.model_cfg,
-                    eval_cfg={"output_dir": str(task_dir / "test"), **evaluation_spec.eval_cfg},
-                )
-            )
-        return evaluators
-
-    def evaluate_models_on_tasks(self, evaluators: list[Evaluator]):
+    def evaluate_models_on_tasks(self):
         rows = len(self.evaluation_tasks)
-        cols = len(evaluators)
+        cols = 1 + len(self.training_tasks)
 
         saved_raw_metrics, saved_prompt_set, saved_prompt_to_task = _load_evaluation_state(self.experiment_root)
         raw_metrics = [[None for _ in range(cols)] for _ in range(rows)]
@@ -137,11 +145,14 @@ class ContinualExperimentEvaluator:
         # ---------------------------
         # Collect metrics
         # ---------------------------
-        for col_idx, evaluator in enumerate(evaluators):
+        training_tasks_for_columns = [None] + self.training_tasks
+
+        for col_idx, training_task in enumerate(training_tasks_for_columns):
             for row_idx, eval_task in enumerate(self.evaluation_tasks):
                 if raw_metrics[row_idx][col_idx] is not None:
                     continue
-                
+
+                evaluator = self.build_model_evaluator(training_task, eval_task)
                 metrics = evaluator.evaluate(
                     VoxTellDataModule(eval_task.dataset_cfg)
                 )
@@ -312,8 +323,7 @@ class ContinualExperimentEvaluator:
             json.dump(self.prompt_to_task, f, indent=2)
 
     def run(self):
-        evaluators = self.build_model_evaluators()
-        self.evaluate_models_on_tasks(evaluators)
+        self.evaluate_models_on_tasks()
         self.compute_and_save_metrics()
 
         logger.info("Continual experiment evaluation completed successfully")
@@ -324,5 +334,6 @@ def evaluate_continual_experiment(
     *,
     checkpoint_name: str = "best_model.pt",
 ) -> dict:
+    _load_builtin_strategies()
     evaluator = ContinualExperimentEvaluator(experiment_root, checkpoint_name)
     return evaluator.run()
